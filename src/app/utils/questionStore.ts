@@ -1,5 +1,5 @@
 import type { Question, Subject, Difficulty } from "../data/sampleData";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
+import { projectId, publicAnonKey } from "../../utils/supabase/info";
 
 const STORE_KEY = "mssn_admin_questions";
 const SERVER = `https://${projectId}.supabase.co/functions/v1/make-server-1943a64d`;

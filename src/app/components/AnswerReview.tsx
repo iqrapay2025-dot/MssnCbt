@@ -5,7 +5,7 @@ import { ChevronLeft, CheckCircle2, XCircle, Filter, ChevronDown, Sparkles } fro
 import { PageFade, MotionCard } from "./MotionCard";
 import { SkeletonCard, SkeletonLine } from "./Skeleton";
 import { saveExplanationForQuestion } from "../utils/questionStore";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
+import { projectId, publicAnonKey } from "../../../utils/supabase/info";
 import type { Question } from "../data/sampleData";
 
 const SERVER = `https://${projectId}.supabase.co/functions/v1/make-server-1943a64d`;

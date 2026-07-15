@@ -6,7 +6,7 @@ import {
   ChevronLeft, CheckCircle2, AlertCircle, Loader2,
 } from "lucide-react";
 import { useAuth, supabase } from "../context/AuthContext";
-import { projectId, publicAnonKey } from "/utils/supabase/info";
+import { projectId, publicAnonKey } from "../../../utils/supabase/info";
 import mssnLogo from "../../imports/mssn_logo-removebg-preview__3_.png";
 
 const SERVER = `https://${projectId}.supabase.co/functions/v1/make-server-1943a64d`;
