@@ -340,7 +340,7 @@ function RightPanel() {
           style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(10px)", borderLeft: `4px solid ${ORANGE}` }}
         >
           <p style={{ color: "rgba(255,255,255,0.88)", fontSize: "14px", lineHeight: 1.7, fontStyle: "italic", marginBottom: "14px" }}>
-            "The MSSN CBT platform is the best tool I've used for Post-UTME prep. The timed mock exams feel exactly like the real thing!"
+            "The MSSNUIL CBT platform is the best tool I've used for Post-UTME prep. The timed mock exams feel exactly like the real thing!"
           </p>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
@@ -1090,7 +1090,7 @@ export function AuthScreen({ initialView = "welcome" }: AuthScreenProps) {
           Account created!
         </h2>
         <p style={{ color: "#6B7280", fontSize: "15px", lineHeight: 1.7 }}>
-          Welcome to MSSN CBT, <strong style={{ color: NAVY }}>{successName}</strong>! 🎉<br />
+          Welcome to MSSNUIL CBT, <strong style={{ color: NAVY }}>{successName}</strong>! 🎉<br />
           <span style={{ fontSize: "13px" }}>Taking you to your dashboard…</span>
         </p>
         <motion.div className="mt-6 mx-auto max-w-[200px]">

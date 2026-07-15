@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import mssnLogo from "../../imports/mssn_logo-removebg-preview__3_.png";
+import heroImg from "../../imports/online-basic-computer-course.jpeg";
 
-const HERO_IMG = "https://images.unsplash.com/photo-1513258496099-48168024aec0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600";
+const HERO_IMG = heroImg;
 const MOCKUP_IMG = "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=600";
 
 const ORANGE = "#F97316";
@@ -72,7 +73,7 @@ function NavBar({ onLogin }: { onLogin: () => void }) {
         transition={{ duration: 0.4 }}
         className="flex items-center gap-2.5 cursor-pointer"
         onClick={() => navigate("/")}
-        aria-label="MSSN CBT Home"
+        aria-label="MSSNUIL CBT Home"
       >
         <img
           src={mssnLogo}
@@ -174,7 +175,7 @@ export function LandingPage() {
         style={{ background: AMBER }}
       >
         <p style={{ fontFamily: "'Manrope', sans-serif", fontWeight: 700, fontSize: "13px", color: "#111" }}>
-          🎉 2024–2025 Post-UTME Registration is open! Start practicing today.{" "}
+          🎉 2026–2027 Post-UTME Registration is open! Start practicing today.{" "}
           <button
             onClick={goLogin}
             style={{ textDecoration: "underline", fontWeight: 900, color: NAVY, background: "none", border: "none", cursor: "pointer" }}
@@ -530,7 +531,7 @@ export function LandingPage() {
               }}
             >
               <p style={{ fontSize: "15px", color: "#374151", fontStyle: "italic", lineHeight: 1.7, marginBottom: "12px" }}>
-                "The MSSN CBT platform is the best tool I've used for Post-UTME prep. The timed mock exams feel exactly like the real thing at the CBT center!"
+                "The MSSNUIL CBT platform is the best tool I've used for Post-UTME prep. The timed mock exams feel exactly like the real thing at the CBT center!"
               </p>
               <div className="flex items-center gap-3">
                 <div

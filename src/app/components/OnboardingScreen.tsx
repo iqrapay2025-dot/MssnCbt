@@ -343,7 +343,7 @@ export function OnboardingScreen() {
             }}
           >
             <p style={{ color: "rgba(255,255,255,0.88)", fontSize: "15px", lineHeight: 1.65, fontStyle: "italic", marginBottom: "14px" }}>
-              "The MSSN CBT platform is the best tool I've used for Post-UTME prep. The timed mock exams feel exactly like the real thing!"
+              "The MSSNUIL CBT platform is the best tool I've used for Post-UTME prep. The timed mock exams feel exactly like the real thing!"
             </p>
             <div className="flex items-center gap-3">
               <div

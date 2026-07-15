@@ -94,7 +94,7 @@ export function SplashLoader() {
   return (
     <div
       role="status"
-      aria-label="Loading MSSN CBT platform"
+      aria-label="Loading MSSNUIL CBT platform"
       style={{
         position: "fixed", inset: 0, zIndex: 9999,
         background: CREAM,

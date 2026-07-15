@@ -9,6 +9,7 @@ import {
 import { PageFade, MotionCard, fadeUp } from "./MotionCard";
 import { loadAdminQuestions, saveAdminQuestions, deleteAdminQuestion, clearAdminQuestions, notifyQuestionsUpdated, type AdminQuestion } from "../utils/questionStore";
 import { pushNotification } from "../utils/notificationStore";
+import { useUser } from "../context/UserContext";
 
 const GREEN = "#1F4E3D";
 const ADMIN_PIN = "admin1234";
@@ -411,6 +412,8 @@ export function AdminPanel() {
   );
 
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmResetStats, setConfirmResetStats] = useState(false);
+  const { resetStats } = useUser();
 
   // Import state
   const [importType, setImportType] = useState<"CSV" | "PDF" | "DOCX" | null>(null);
@@ -532,6 +535,17 @@ export function AdminPanel() {
     setBroadcastBody("");
     setBroadcastSent(true);
     setTimeout(() => setBroadcastSent(false), 3000);
+  };
+
+  const handleResetStats = () => {
+    resetStats();
+    pushNotification({
+      title: "User stats reset",
+      body: "User statistics were cleared successfully.",
+      type: "broadcast",
+      timestamp: Date.now(),
+    });
+    setConfirmResetStats(false);
   };
 
   const handleManualPublish = () => {
@@ -1143,7 +1157,43 @@ export function AdminPanel() {
             {/* ── Users ── */}
             {tab === "users" && (
               <div>
-                <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, color: "#111", fontSize: "22px", marginBottom: "20px" }}>👥 User Activity</h2>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
+                  <div>
+                    <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, color: "#111", fontSize: "22px", marginBottom: "6px" }}>👥 User Activity</h2>
+                    <p style={{ fontSize: "13px", color: "#6B7280" }}>Reset stored user statistics for the current browser session.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!confirmResetStats ? (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                        onClick={() => setConfirmResetStats(true)}
+                        className="px-4 py-2 rounded-2xl font-bold text-sm"
+                        style={{ background: "#F97316", color: "white", fontFamily: "'Manrope', sans-serif" }}
+                      >
+                        Reset stats
+                      </motion.button>
+                    ) : (
+                      <>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                          onClick={handleResetStats}
+                          className="px-4 py-2 rounded-2xl font-bold text-sm"
+                          style={{ background: "#DC2626", color: "white", fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          Confirm reset
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                          onClick={() => setConfirmResetStats(false)}
+                          className="px-4 py-2 rounded-2xl font-bold text-sm"
+                          style={{ background: "#F3F4F6", color: "#6B7280", fontFamily: "'Manrope', sans-serif" }}
+                        >
+                          Cancel
+                        </motion.button>
+                      </>
+                    )}
+                  </div>
+                </div>
                 <div className="relative mb-4">
                   <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "#aaa" }} />
                   <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search users..."
