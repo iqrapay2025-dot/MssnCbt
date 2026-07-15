@@ -5,12 +5,14 @@ const GREEN = "#F97316";
 
 /* ─── Shared animation variants ─────────────────────────────────────────── */
 
+const easeCurve = [0.22, 1, 0.36, 1] as const;
+
 export const fadeUp = {
   hidden: { opacity: 0, y: 28 },
   visible: (i = 0) => ({
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.5, delay: i * 0.1, ease: easeCurve },
   }),
 };
 
@@ -19,7 +21,7 @@ export const scaleIn = {
   visible: (i = 0) => ({
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.45, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.45, delay: i * 0.1, ease: easeCurve },
   }),
 };
 
