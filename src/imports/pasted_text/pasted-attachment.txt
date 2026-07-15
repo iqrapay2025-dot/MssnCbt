@@ -1,0 +1,95 @@
+Build a fully responsive web app called "MSSN UNILORIN Post-UTME CBT Practice" — a CBT exam practice platform for students preparing for University of Ilorin's Post-UTME screening. The app must work equally well on desktop/laptop (matching the real exam environment at CBT centers) and on mobile (for quick practice sessions on the go). Design all screens with responsive layouts in mind — not a mobile layout stretched to desktop, but proper breakpoints for both.
+
+CONTEXT
+The real exam: 50 objective questions, 30-minute timer, 4 subjects (English Language, Mathematics, Current Affairs, General Knowledge). Students need realistic timed practice plus untimed topic drills. Since the actual exam is taken on a desktop at a CBT center, the exam-mode screen especially should reflect a desktop-style layout (question navigator grid visible on-screen, not hidden in a mobile menu) when viewed on larger screens, while still adapting cleanly to mobile for topic practice.
+
+DESIGN DIRECTION
+- Clean, modern, trustworthy — this is an academic tool, not a game, though it should feel encouraging and motivating
+- Primary palette: dark green (#1F4E3D or similar) as brand color, white as primary background, black for high-contrast text/headers, beige (#F0E6D2 or similar warm neutral) for card backgrounds and section dividers
+- Use dark green for primary buttons/CTAs and nav highlights, beige for secondary surfaces (cards, panels), white for main backgrounds, black reserved for text and key headings
+- Subtle Islamic-inspired geometric pattern accents in dark green (header/footer only, not distracting)
+- Rounded cards, soft shadows, generous spacing — should feel calm, not cluttered
+- Typography: use Utendo for headings/titles and Manrope for body text, UI labels, and question content — larger sizes for question text (readability under exam pressure)
+
+CORE SCREENS TO DESIGN
+
+1. Onboarding / Login
+- Welcome screen with MSSN branding, Islamic greeting ("As-salamu alaykum")
+- Login/signup via email or phone
+- Simple, minimal fields
+
+2. Home Dashboard
+- Greeting with student's name
+- Quick stats: total sessions, average score, current streak
+- Big primary CTA: "Start Full Mock Exam" (50 Q, 30 min)
+- Secondary CTA: "Practice by Topic"
+- Card showing weakest subject with "Practice this" shortcut
+- Bottom nav on mobile, left sidebar nav on desktop: Home, Practice, Leaderboard, Reports, Profile
+
+3. Subject/Topic Selector (Practice Mode)
+- Four subject cards (English, Maths, Current Affairs, General Knowledge)
+- Each expandable to show sub-topics with a small progress bar per topic
+- Difficulty filter: Easy / Medium / Hard toggle
+- "Last updated" date shown per subject
+
+4. Pre-Exam Screen
+- Mode summary (mock vs practice), question count, time limit
+- Instructions card (no phone distractions, stable network reminder)
+- "Start Exam" button
+
+5. Exam / Question Screen
+- Top bar: countdown timer (turns amber-beige under 5 min, red under 1 min), question number (e.g. "12/50")
+- Question text area, 4 answer options as tappable/clickable cards
+- Bottom bar: Previous / Next buttons, "Flag for review" icon
+- Question navigator grid showing answered (dark green), unanswered (beige/gray), flagged (red-outline) question numbers
+- Small "Report this question" icon (subtle, corner of card)
+
+6. Submit Confirmation Modal
+- Shows unanswered question count as a warning
+- "Submit" and "Go back" buttons
+
+7. Results/Report Screen
+- Big score circle (e.g. 78/100) with dark green (pass) / red (needs work) color coding
+- Per-subject breakdown bars (English, Maths, Current Affairs, GK)
+- Time used, fast-answer bonus earned (highlighted with a dark green badge)
+- "Review Answers" CTA leading to answer review screen
+- Share result card button (generates branded shareable image)
+
+8. Answer Review Screen
+- List of all 50 questions, collapsed by default
+- Tap to expand: question, your answer (marked wrong/right), correct answer, explanation text, step-by-step solution if Maths
+- Filter: Show only wrong answers
+
+9. Leaderboard Screen
+- Toggle: All-time / This week / This month
+- Ranked list: position, avatar/initial, nickname, score
+- Current user's row highlighted/sticky if they scroll past their position
+- Top 3 shown with special dark green badge/crown styling
+
+10. Reports Dashboard
+- Line graph of scores over time
+- Subject-wise radar or bar chart showing strengths/weaknesses
+- Syllabus coverage progress bar per subject
+
+11. Profile Screen
+- Editable name/nickname toggle for leaderboard privacy
+- Streak counter, badges earned
+- Settings: notifications, offline mode toggle
+
+12. Admin Panel (desktop-oriented, but usable on tablet)
+- Dashboard overview: total registered users, active users today/this week, total sessions completed, average platform score
+- Question list table with subject/topic/difficulty tags and status (published/flagged)
+- "Add Question" form: text, 4 options, correct answer, explanation, subject/topic tags
+- "Import" button with three options: Upload CSV / Upload PDF / Upload DOCX — each shows an extraction preview (questions, options, correct answers auto-parsed) before publishing
+- Flagged questions queue for review
+- User Activity Tracker: table of all users showing name/nickname, sessions completed, last active date/time, average score, streak status — sortable and searchable
+- Individual user drill-down: click a user to see their full session history, subject-wise performance, and time spent per session
+
+INTERACTION NOTES
+- Timer must be persistently visible during exam mode
+- Use color coding consistently: dark green = correct/good/bonus, red = wrong/urgent/flagged, beige = neutral/unanswered
+- Keep exam screen distraction-free — no nav bar visible during active exam, only during practice/browsing
+- On desktop: exam screen shows question navigator grid as a persistent sidebar; on mobile: collapses into an expandable bottom drawer
+- Admin panel is desktop-oriented but should still be usable on tablet
+
+Generate this as a connected multi-screen prototype with realistic sample data (sample questions, sample leaderboard names, sample scores, sample admin user activity data) so the flow feels real.
