@@ -412,11 +412,26 @@ export function AuthScreen({ initialView = "welcome" }: AuthScreenProps) {
   // Success state
   const [successName, setSuccessName] = useState("");
 
+  // Redirect after auth — admin goes to /admin, others to /home
+  const redirectAfterAuth = (uid: string) => {
+    try{
+    supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", uid)
+      .single()
+      .then(({ data }) => navigate(data?.role === "admin" ? "/admin" : "/home", { replace: true }))
+    } catch {
+      navigate("/home", { replace: true })
+    }
+  };
+
+
   // Redirect if already authenticated
   useEffect(() => {
-    if (!authLoading && (user || isGuest)) {
-      navigate("/home", { replace: true });
-    }
+    if (authLoading) return;
+    if (isGuest) { navigate("/home", { replace: true }); return; }
+    if (user) { redirectAfterAuth(user.id); }
   }, [user, isGuest, authLoading, navigate]);
 
   // Detect Supabase password-recovery redirect
@@ -530,13 +545,13 @@ export function AuthScreen({ initialView = "welcome" }: AuthScreenProps) {
       const authEmail = method === "email"
         ? loginEmail.trim().toLowerCase()
         : phoneToSyntheticEmail(loginPhone);
-      const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: loginPassword });
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: authEmail, password: loginPassword });
       if (error) {
         // Generic error — do not hint whether it was the email/phone or the password
         setServerError("Incorrect email/phone or password. Please try again.");
         return;
       }
-      navigate("/home");
+      if (signInData.user) redirectAfterAuth(signInData.user.id);
     } catch {
       setServerError("Connection error. Please check your internet and try again.");
     } finally {

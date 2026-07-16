@@ -3,14 +3,17 @@ import { motion, AnimatePresence } from "motion/react";
 import { Bell, X, CheckCheck, Trash2, MessageSquare, BookOpen, Info, ChevronLeft, Clock } from "lucide-react";
 import {
   loadNotifications,
+  fetchServerNotifications,
   markAllRead,
   markRead,
   deleteNotification,
   clearAllNotifications,
   getUnreadCount,
+  subscribeToNotifications,
   NOTIFICATION_EVENT,
   type AppNotification,
 } from "../utils/notificationStore";
+import { useAuth } from "../context/AuthContext";
 
 const GREEN = "#1F4E3D";
 const ORANGE = "#F97316";
@@ -178,49 +181,68 @@ interface Props {
 }
 
 export function NotificationsPanel({ open, onClose }: Props) {
+  const { user } = useAuth();
+  const userId = user?.id || "";
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [reading, setReading] = useState<AppNotification | null>(null);
 
-  const refresh = useCallback(() => {
-    setNotifs(loadNotifications());
-  }, []);
+  const refresh = useCallback(async () => {
+    if (userId) {
+      const serverNotifs = await fetchServerNotifications(userId);
+      setNotifs(serverNotifs);
+    } else {
+      setNotifs(loadNotifications());
+    }
+  }, [userId]);
 
   useEffect(() => {
     refresh();
-    window.addEventListener(NOTIFICATION_EVENT, refresh);
-    window.addEventListener("storage", refresh);
-    window.addEventListener("focus", refresh);
+    window.addEventListener(NOTIFICATION_EVENT, () => refresh());
+    window.addEventListener("storage", () => refresh());
+    window.addEventListener("focus", () => refresh());
+
+    // Subscribe to real-time changes
+    let unsubscribe: (() => void) | undefined;
+    if (userId) {
+      unsubscribe = subscribeToNotifications(userId, () => {
+        refresh();
+      });
+    }
+
     return () => {
-      window.removeEventListener(NOTIFICATION_EVENT, refresh);
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("focus", refresh);
+      window.removeEventListener(NOTIFICATION_EVENT, () => refresh());
+      window.removeEventListener("storage", () => refresh());
+      window.removeEventListener("focus", () => refresh());
+      if (unsubscribe) unsubscribe();
     };
-  }, [refresh]);
+  }, [refresh, userId]);
 
   useEffect(() => {
     if (open) { refresh(); setReading(null); }
   }, [open, refresh]);
 
-  const openMessage = (notif: AppNotification) => {
-    if (!notif.read) {
-      markRead(notif.id);
-      setNotifs((prev) => prev.map((n) => n.id === notif.id ? { ...n, read: true } : n));
+  const openMessage = async (notif: AppNotification) => {
+    if (!notif.read && userId) {
+      await markRead(notif.id, userId);
+      refresh();
     }
     setReading(notif);
   };
 
-  const handleDelete = (id: string) => {
-    deleteNotification(id);
+  const handleDelete = async (id: string) => {
+    await deleteNotification(id);
     refresh();
   };
 
-  const handleMarkAllRead = () => {
-    markAllRead();
-    refresh();
+  const handleMarkAllRead = async () => {
+    if (userId) {
+      await markAllRead(userId);
+      refresh();
+    }
   };
 
-  const handleClearAll = () => {
-    clearAllNotifications();
+  const handleClearAll = async () => {
+    await clearAllNotifications();
     setReading(null);
     refresh();
   };
@@ -496,11 +518,16 @@ export function NotificationBell({ onClick }: { onClick: () => void }) {
     };
   }, [refresh]);
 
+  const handleClick = () => {
+    setCount(getUnreadCount());
+    onClick();
+  };
+
   return (
     <motion.button
       whileHover={{ scale: 1.1 }}
       whileTap={{ scale: 0.9 }}
-      onClick={onClick}
+      onClick={handleClick}
       className="relative flex items-center justify-center w-9 h-9 rounded-xl"
       aria-label={count > 0 ? `Notifications — ${count} unread` : "Notifications"}
       aria-haspopup="dialog"

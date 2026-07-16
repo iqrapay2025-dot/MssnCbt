@@ -107,8 +107,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Restore existing session on mount
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    // Restore existing session on mount — await checkAdminRole before setting loading=false
+    supabase.auth.getSession().then(async ({ data: { session: s } }) => {
       setSession(s);
       setUser(s?.user ?? null);
       syncDisplayName(s?.user ?? null);
@@ -116,14 +116,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const email = s.user.email || "";
         const name = (s.user.user_metadata?.name as string) || email.split("@")[0] || "Student";
         addRegisteredUser(name, email);
-        checkAdminRole(s.user.id);
+        await checkAdminRole(s.user.id);
       }
       setLoading(false);
     });
 
     // Keep auth state in sync
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, s) => {
+      async (event, s) => {
         setSession(s);
         setUser(s?.user ?? null);
         syncDisplayName(s?.user ?? null);
@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const name = (s.user.user_metadata?.name as string) || email.split("@")[0] || "Student";
           addRegisteredUser(name, email);
           incrementUserCount();
-          checkAdminRole(s.user.id);
+          await checkAdminRole(s.user.id);
         }
         
         if (event === "SIGNED_OUT") {
