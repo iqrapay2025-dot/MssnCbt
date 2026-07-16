@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router";
 import { motion } from "motion/react";
 import { Home, BookOpen, Trophy, BarChart2, User, LogOut, Globe } from "lucide-react";
 import { useUser } from "../context/UserContext";
-import { useAuth } from "../context/AuthContext";
+import { useAuth, supabase } from "../context/AuthContext";
 import { NotificationBell, NotificationsPanel } from "./NotificationsPanel";
 import mssnLogo from "../../imports/mssn_logo-removebg-preview__3_.png";
 
@@ -23,7 +23,7 @@ export function Navigation() {
   const { resetStats } = useUser();
   const [notifOpen, setNotifOpen] = useState(false);
 
-  const { signOut } = useAuth();
+  const { signOut, isAdmin } = useAuth();
 
   const handleLogout = async () => {
     resetStats();
@@ -116,6 +116,18 @@ export function Navigation() {
 
         {/* Footer */}
         <div className="px-4 py-4 space-y-2" style={{ borderTop: "1px solid #F3F4F6" }}>
+          {isAdmin && (
+            <motion.button
+              whileHover={{ x: 4 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/admin")}
+              className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl"
+              style={{ color: GREEN, fontFamily: "'Manrope', sans-serif", fontWeight: 700, fontSize: "13px" }}
+            >
+              <span style={{ fontSize: "15px" }}>⚙️</span>
+              Admin Panel
+            </motion.button>
+          )}
           <motion.button
             whileHover={{ x: 4 }}
             whileTap={{ scale: 0.97 }}

@@ -405,9 +405,20 @@ function ReviewModal({
 // ── Main AdminPanel ───────────────────────────────────────────────────────────
 export function AdminPanel() {
   const navigate = useNavigate();
+  const { user, isAdmin, loading: authLoading } = useAuth();
+
+  // Route guard: redirect non-admin users to home
+  useEffect(() => {
+    if (!authLoading && (!user || !isAdmin)) {
+      navigate("/home", { replace: true });
+    }
+  }, [user, isAdmin, authLoading, navigate]);
+
   const [unlocked, setUnlocked] = useState(false);
   const [tab, setTab] = useState<AdminTab>("overview");
   const [search, setSearch] = useState("");
+
+  if (!authLoading && (!user || !isAdmin)) return null;
 
   // Published questions — persisted to localStorage
   const [publishedQuestions, setPublishedQuestions] = useState<ParsedQuestion[]>(() =>

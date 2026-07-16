@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { Flag, ChevronLeft, ChevronRight, AlertTriangle, Grid3X3, X, TriangleAlert } from "lucide-react";
+import { Flag, ChevronLeft, ChevronRight, AlertTriangle, Grid3X3, X, TriangleAlert, Clock } from "lucide-react";
 import { type Question, type Subject, type Difficulty } from "../data/sampleData";
 import { getExamQuestions } from "../utils/questionStore";
 
@@ -164,6 +164,10 @@ export function ExamScreen() {
     ? timeLeft <= 60 ? "#DC2626" : timeLeft <= 300 ? "#D97706" : ORANGE
     : ORANGE;
 
+  // Next button should be disabled when current question has no answer selected
+  const hasAnsweredCurrent = answers[current] !== null;
+  const isNextDisabled = !hasAnsweredCurrent;
+
   // Guard: no questions uploaded yet
   if (questions.length === 0) {
     return (
@@ -256,13 +260,12 @@ export function ExamScreen() {
             className="flex items-center gap-2 px-4 py-2 rounded-full"
             style={{ background: `${timerColor}12`, border: `1.5px solid ${timerColor}35` }}
           >
-            <motion.span
-              style={{ fontSize: "16px" }}
+            <motion.div
               animate={isMock && timeLeft <= 300 ? { rotateZ: [0, -15, 15, 0] } : {}}
               transition={{ repeat: Infinity, duration: 1 }}
             >
-              ⏱️
-            </motion.span>
+              <Clock size={16} style={{ color: timerColor }} />
+            </motion.div>
             <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, color: timerColor, fontSize: "17px" }}>
               {isMock ? fmt(timeLeft) : fmt(elapsedRef.current)}
             </span>
@@ -451,11 +454,18 @@ export function ExamScreen() {
 
             {current < questions.length - 1 ? (
               <motion.button
-                whileHover={{ scale: 1.04, x: 2, boxShadow: "0 8px 24px rgba(249,115,22,0.3)" }}
-                whileTap={{ scale: 0.96 }}
-                onClick={() => setCurrent((c) => c + 1)}
+                whileHover={isNextDisabled ? {} : { scale: 1.04, x: 2, boxShadow: "0 8px 24px rgba(249,115,22,0.3)" }}
+                whileTap={isNextDisabled ? {} : { scale: 0.96 }}
+                onClick={() => { if (!isNextDisabled) setCurrent((c) => c + 1); }}
+                disabled={isNextDisabled}
                 className="flex items-center gap-2 px-5 py-3 rounded-full font-bold text-sm"
-                style={{ background: ORANGE, color: "white", fontFamily: "'Manrope', sans-serif", boxShadow: "0 4px 14px rgba(249,115,22,0.25)" }}
+                style={{
+                  background: isNextDisabled ? "#D1D5DB" : ORANGE,
+                  color: isNextDisabled ? "#9CA3AF" : "white",
+                  fontFamily: "'Manrope', sans-serif",
+                  boxShadow: isNextDisabled ? "none" : "0 4px 14px rgba(249,115,22,0.25)",
+                  cursor: isNextDisabled ? "not-allowed" : "pointer",
+                }}
               >
                 Next <ChevronRight size={16} />
               </motion.button>

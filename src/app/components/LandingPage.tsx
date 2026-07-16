@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
+import { useAuth } from "../context/AuthContext";
 import mssnLogo from "../../imports/mssn_logo-removebg-preview__3_.png";
 import heroImg from "../../imports/online-basic-computer-course.jpeg";
 
@@ -164,7 +165,15 @@ function NavBar({ onLogin }: { onLogin: () => void }) {
 
 export function LandingPage() {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const goLogin = () => navigate("/login");
+
+  // Fix 3: If a logged-in user navigates back to the landing page
+  // (via back button or manual URL), terminate the session so that
+  // "Get Started" always requires a fresh login.
+  useEffect(() => {
+    signOut();
+  }, [signOut]);
 
   return (
     <div style={{ fontFamily: "'Manrope', sans-serif", background: "#fff", overflowX: "hidden" }}>
@@ -863,13 +872,6 @@ export function LandingPage() {
                 {link}
               </a>
             ))}
-            <a
-              href="/admin"
-              style={{ fontSize: "11px", fontWeight: 700, color: "rgba(0,0,0,0.35)", textDecoration: "none" }}
-              title="Admin Portal — PIN required"
-            >
-              Admin Portal
-            </a>
           </div>
         </div>
       </footer>

@@ -243,9 +243,9 @@ export function NotificationsPanel({ open, onClose }: Props) {
 
           {/* Panel */}
           <motion.div
-            initial={{ opacity: 0, x: 60 }}
+            initial={{ opacity: 0, x: "100%" }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 60 }}
+            exit={{ opacity: 0, x: "100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 30 }}
             className="fixed z-50 shadow-2xl flex flex-col overflow-hidden"
             role="dialog"
@@ -256,6 +256,7 @@ export function NotificationsPanel({ open, onClose }: Props) {
               top: 0,
               bottom: 0,
               width: "min(420px, 100vw)",
+              maxWidth: "100vw",
               background: "white",
               fontFamily: "'Manrope', sans-serif",
               borderLeft: "1px solid #F0F0F0",
@@ -283,14 +284,14 @@ export function NotificationsPanel({ open, onClose }: Props) {
                     className="flex items-center justify-between px-5 py-4 flex-shrink-0"
                     style={{ borderBottom: "1px solid #F3F4F6" }}
                   >
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className="w-9 h-9 rounded-xl flex items-center justify-center"
+                        className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
                         style={{ background: `${GREEN}12` }}
                       >
                         <Bell size={17} style={{ color: GREEN }} />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, color: NAVY, fontSize: "16px" }}>
                           Notifications
                         </p>
@@ -301,17 +302,17 @@ export function NotificationsPanel({ open, onClose }: Props) {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
                       {unread > 0 && (
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={handleMarkAllRead}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold"
                           style={{ background: `${GREEN}12`, color: GREEN }}
                           aria-label="Mark all notifications as read"
                         >
-                          <CheckCheck size={12} /> All read
+                          <CheckCheck size={11} /> All read
                         </motion.button>
                       )}
                       <motion.button
