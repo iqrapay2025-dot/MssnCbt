@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
-import * as kv from "./kv_store.tsx";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,29 +84,92 @@ serve(async (req: Request) => {
     return json({ ok: true, userId: data.user?.id });
   }
 
-  // ── Questions: GET ──────────────────────────────────────────────────────────
+  // ── Questions: GET (from new questions table) ──────────────────────────────
   if (pathname.endsWith("/questions") && method === "GET") {
     try {
-      const raw = await kv.get("mssn_admin_questions_v1");
-      if (!raw) return json({ questions: [] });
-      return json({ questions: JSON.parse(raw as string) });
+      const supabase = adminSupabase();
+      const { data, error } = await supabase
+        .from("questions")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.log(`Error fetching questions: ${error.message}`);
+        return json({ questions: [] });
+      }
+      return json({ questions: data || [] });
     } catch (err) {
       console.log(`Error loading questions: ${err}`);
       return json({ questions: [] });
     }
   }
 
-  // ── Questions: POST ─────────────────────────────────────────────────────────
+  // ── Questions: POST (admin inserts into questions table) ───────────────────
   if (pathname.endsWith("/questions") && method === "POST") {
-    let body: { questions?: unknown };
+    let body: { questions?: unknown[] };
     try { body = await req.json(); } catch { return json({ error: "Invalid JSON body." }, 400); }
     if (!Array.isArray(body.questions)) return json({ error: "questions must be an array." }, 400);
+
+    const supabase = adminSupabase();
+    const formatted = body.questions.map((q: any) => ({
+      question: q.question,
+      option_a: q.options?.[0] || q.option_a || "",
+      option_b: q.options?.[1] || q.option_b || "",
+      option_c: q.options?.[2] || q.option_c || "",
+      option_d: q.options?.[3] || q.option_d || "",
+      correct: ["A", "B", "C", "D"][q.correctIndex] || q.correct || "A",
+      subject: q.subject,
+      topic: q.topic || "General",
+      difficulty: q.difficulty || "Medium",
+      explanation: q.explanation || "",
+    }));
+
     try {
-      await kv.set("mssn_admin_questions_v1", JSON.stringify(body.questions));
-      return json({ ok: true, count: body.questions.length });
+      const { error } = await supabase.from("questions").insert(formatted);
+      if (error) {
+        console.log(`Error saving questions: ${error.message}`);
+        return json({ error: `Failed to save: ${error.message}` }, 500);
+      }
+      return json({ ok: true, count: formatted.length });
     } catch (err) {
       console.log(`Error saving questions: ${err}`);
       return json({ error: `Failed to save: ${err}` }, 500);
+    }
+  }
+
+  // ── Questions: DELETE ─────────────────────────────────────────────────────
+  if (pathname.endsWith("/questions") && method === "DELETE") {
+    let body: { id?: string };
+    try { body = await req.json(); } catch { return json({ error: "Invalid JSON body." }, 400); }
+    if (!body.id) return json({ error: "id is required." }, 400);
+
+    try {
+      const supabase = adminSupabase();
+      const { error } = await supabase.from("questions").delete().eq("id", body.id);
+      if (error) {
+        return json({ error: error.message }, 500);
+      }
+      return json({ ok: true });
+    } catch (err) {
+      return json({ error: `Failed to delete: ${err}` }, 500);
+    }
+  }
+
+  // ── Questions: PUT (update) ───────────────────────────────────────────────
+  if (pathname.endsWith("/questions") && method === "PUT") {
+    let body: { id?: string; updates?: Record<string, unknown> };
+    try { body = await req.json(); } catch { return json({ error: "Invalid JSON body." }, 400); }
+    if (!body.id || !body.updates) return json({ error: "id and updates are required." }, 400);
+
+    try {
+      const supabase = adminSupabase();
+      const { error } = await supabase.from("questions").update(body.updates).eq("id", body.id);
+      if (error) {
+        return json({ error: error.message }, 500);
+      }
+      return json({ ok: true });
+    } catch (err) {
+      return json({ error: `Failed to update: ${err}` }, 500);
     }
   }
 

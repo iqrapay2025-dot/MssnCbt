@@ -1,15 +1,18 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Users, FileQuestion, Flag, BarChart2, ChevronLeft, Search,
   Plus, Upload, ChevronDown, X, Lock, Shield, Download,
   CheckCircle2, AlertCircle, Trash2, Eye, EyeOff, Send, MessageSquare, Bell,
+  RefreshCw, AlertTriangle,
 } from "lucide-react";
 import { PageFade, MotionCard, fadeUp } from "./MotionCard";
-import { loadAdminQuestions, saveAdminQuestions, deleteAdminQuestion, clearAdminQuestions, notifyQuestionsUpdated, type AdminQuestion } from "../utils/questionStore";
+import { loadAdminQuestions, saveAdminQuestions, deleteAdminQuestion, clearAdminQuestions, notifyQuestionsUpdated, syncQuestionsFromSupabase, saveQuestionsToSupabase, deleteQuestionFromSupabase, type AdminQuestion } from "../utils/questionStore";
 import { pushNotification } from "../utils/notificationStore";
 import { useUser } from "../context/UserContext";
+import { getUserCount, getRegisteredUsers, useAuth } from "../context/AuthContext";
+import { supabase } from "../context/AuthContext";
 
 const GREEN = "#1F4E3D";
 const ADMIN_PIN = "admin1234";
@@ -681,7 +684,7 @@ export function AdminPanel() {
                 </motion.h2>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                   {[
-                    { icon: Users,        label: "Total Users",    value: "0",                              note: "No users registered yet" },
+                    { icon: Users,        label: "Total Users",    value: getUserCount().toString(),        note: getUserCount() > 0 ? `Registered users` : "No users registered yet" },
                     { icon: Users,        label: "Active Today",   value: "0",                              note: "No active sessions" },
                     { icon: BarChart2,    label: "Sessions Today", value: "0",                              note: "—" },
                     { icon: FileQuestion, label: "Questions",      value: publishedQuestions.length.toString(), note: publishedQuestions.length === 0 ? "No questions published" : "Published" },
@@ -1160,7 +1163,7 @@ export function AdminPanel() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
                   <div>
                     <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, color: "#111", fontSize: "22px", marginBottom: "6px" }}>👥 User Activity</h2>
-                    <p style={{ fontSize: "13px", color: "#6B7280" }}>Reset stored user statistics for the current browser session.</p>
+                    <p style={{ fontSize: "13px", color: "#6B7280" }}>Total registered: <strong>{getUserCount()}</strong> users</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {!confirmResetStats ? (
@@ -1200,11 +1203,45 @@ export function AdminPanel() {
                     className="w-full pl-11 pr-4 py-3 rounded-2xl border-2 bg-white outline-none"
                     style={{ borderColor: "#eee", fontFamily: "'Manrope', sans-serif", fontSize: "14px" }} />
                 </div>
-                <div className="rounded-3xl p-12 text-center" style={{ background: "white", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
-                  <Users size={36} style={{ margin: "0 auto 12px", color: "#ddd" }} />
-                  <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, color: "#aaa", fontSize: "16px" }}>No users yet</p>
-                  <p style={{ fontSize: "13px", color: "#ccc", marginTop: "4px" }}>Users who register will appear here</p>
-                </div>
+                {(() => {
+                  const registeredUsers = getRegisteredUsers();
+                  const filtered = search
+                    ? registeredUsers.filter(u => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()))
+                    : registeredUsers;
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="rounded-3xl p-12 text-center" style={{ background: "white", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
+                        <Users size={36} style={{ margin: "0 auto 12px", color: "#ddd" }} />
+                        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, color: "#aaa", fontSize: "16px" }}>
+                          {search ? "No matching users" : "No users yet"}
+                        </p>
+                        <p style={{ fontSize: "13px", color: "#ccc", marginTop: "4px" }}>
+                          {search ? "Try a different search term" : "Users who register will appear here"}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {filtered.map((u, i) => (
+                        <MotionCard key={u.email} delay={Math.min(i, 5)} style={{ background: "white", borderRadius: "16px", padding: "14px 16px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${GREEN}15` }}>
+                              <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, color: GREEN, fontSize: "13px" }}>
+                                {u.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p style={{ fontWeight: 700, fontSize: "13px", color: "#111" }} className="truncate">{u.name}</p>
+                              <p style={{ fontSize: "11px", color: "#9CA3AF" }} className="truncate">{u.email}</p>
+                            </div>
+                            <span style={{ fontSize: "10px", color: "#aaa", flexShrink: 0 }}>{u.date}</span>
+                          </div>
+                        </MotionCard>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </main>

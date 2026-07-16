@@ -4,13 +4,14 @@ import { motion } from "motion/react";
 import { Navigation } from "./Navigation";
 import { PageFade, MotionCard } from "./MotionCard";
 import { useUser } from "../context/UserContext";
+import { useAuth } from "../context/AuthContext";
 import { SkeletonStatGrid, SkeletonCard } from "./Skeleton";
 import {
   Edit3, Check,
   Flame, Medal, Trophy,
   Zap, BookOpen, Target,
   Bell, Wifi, User,
-  Star,
+  Star, LogOut,
 } from "lucide-react";
 
 const GREEN = "#1F4E3D";
@@ -27,6 +28,7 @@ const BADGES = [
 export function Profile() {
   const navigate = useNavigate();
   const { stats } = useUser();
+  const { signOut } = useAuth();
   const [pageLoading, setPageLoading] = useState(true);
   useEffect(() => { const t = setTimeout(() => setPageLoading(false), 400); return () => clearTimeout(t); }, []);
   const [editName, setEditName] = useState(false);
@@ -289,7 +291,7 @@ export function Profile() {
             ))}
           </MotionCard>
 
-          <div className="mt-4">
+          <div className="mt-4 space-y-3">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
@@ -298,6 +300,19 @@ export function Profile() {
               style={{ background: "white", color: "#888", boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}
             >
               ← Back to Dashboard
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02, boxShadow: "0 4px 16px rgba(220,38,38,0.15)" }}
+              whileTap={{ scale: 0.97 }}
+              onClick={async () => {
+                await signOut();
+                navigate("/");
+              }}
+              className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
+              style={{ background: "#FEF2F2", color: "#DC2626", boxShadow: "0 2px 10px rgba(0,0,0,0.04)" }}
+            >
+              <LogOut size={16} />
+              Log Out
             </motion.button>
           </div>
           </>}

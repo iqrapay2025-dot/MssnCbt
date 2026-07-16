@@ -1,5 +1,6 @@
 import type { Question, Subject, Difficulty } from "../data/sampleData";
 import { projectId, publicAnonKey } from "../../../utils/supabase/info";
+import { supabase } from "../context/AuthContext";
 
 const STORE_KEY = "mssn_admin_questions";
 const SERVER = `https://${projectId}.supabase.co/functions/v1/make-server-1943a64d`;
@@ -13,6 +14,21 @@ export interface AdminQuestion {
   topic: string;
   difficulty: string;
   explanation: string;
+}
+
+/** Converts a row from public.questions to our AdminQuestion format */
+function rowToAdminQuestion(row: any): AdminQuestion {
+  const correctIndex = ["A", "B", "C", "D"].indexOf(row.correct);
+  return {
+    id: row.id,
+    question: row.question,
+    options: [row.option_a, row.option_b, row.option_c, row.option_d],
+    correctIndex: correctIndex >= 0 ? correctIndex : 0,
+    subject: row.subject,
+    topic: row.topic || "General",
+    difficulty: row.difficulty || "Medium",
+    explanation: row.explanation || "",
+  };
 }
 
 export function loadAdminQuestions(): AdminQuestion[] {
@@ -31,7 +47,7 @@ export function saveAdminQuestions(questions: AdminQuestion[]): void {
   saveToServer(questions);
 }
 
-/** Saves questions to the Supabase KV store for cross-session persistence. */
+/** Saves questions to the Supabase edge function (which writes to questions table). */
 async function saveToServer(questions: AdminQuestion[]): Promise<void> {
   try {
     await fetch(`${SERVER}/questions`, {
@@ -45,26 +61,115 @@ async function saveToServer(questions: AdminQuestion[]): Promise<void> {
 }
 
 /**
- * Fetches questions from the server and populates localStorage if it is empty.
- * Called once on app startup to restore data after browser reload / cache clear.
+ * Fetches questions from the Supabase questions table directly
+ * (bypasses the edge function KV store). Called on app startup.
  */
 export async function syncFromServer(): Promise<void> {
   try {
-    const local = loadAdminQuestions();
-    if (local.length > 0) return; // localStorage already has data
+    // Try to fetch from the questions table directly first
+    const { data: tableData, error: tableError } = await supabase
+      .from("questions")
+      .select("*")
+      .order("created_at", { ascending: false });
 
+    if (!tableError && tableData && tableData.length > 0) {
+      const questions = tableData.map(rowToAdminQuestion);
+      localStorage.setItem(STORE_KEY, JSON.stringify(questions));
+      notifyQuestionsUpdated(questions.length);
+      return;
+    }
+
+    // Fallback: try the edge function KV store
     const res = await fetch(`${SERVER}/questions`, {
       headers: { Authorization: `Bearer ${publicAnonKey}` },
     });
     if (!res.ok) return;
     const data = await res.json();
-    const questions: AdminQuestion[] = Array.isArray(data.questions) ? data.questions : [];
-    if (questions.length > 0) {
-      localStorage.setItem(STORE_KEY, JSON.stringify(questions));
-      notifyQuestionsUpdated(questions.length);
+    const serverQuestions: AdminQuestion[] = Array.isArray(data.questions) ? data.questions : [];
+    
+    if (serverQuestions.length > 0) {
+      const local = loadAdminQuestions();
+      const serverCount = serverQuestions.length;
+      const localCount = local.length;
+      
+      if (serverCount !== localCount) {
+        localStorage.setItem(STORE_KEY, JSON.stringify(serverQuestions));
+        if (serverCount > localCount) {
+          notifyQuestionsUpdated(serverCount);
+        }
+      }
     }
   } catch {
-    // Silently ignore — user will just see empty question bank
+    // Silently ignore
+  }
+}
+
+/** Sync questions from Supabase questions table directly (for admin panel) */
+export async function syncQuestionsFromSupabase(): Promise<AdminQuestion[]> {
+  try {
+    const { data, error } = await supabase
+      .from("questions")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching questions from Supabase:", error);
+      return loadAdminQuestions();
+    }
+    
+    if (data && data.length > 0) {
+      const questions = data.map(rowToAdminQuestion);
+      localStorage.setItem(STORE_KEY, JSON.stringify(questions));
+      return questions;
+    }
+  } catch {}
+  return loadAdminQuestions();
+}
+
+/** Save questions directly to the Supabase questions table (admin only) */
+export async function saveQuestionsToSupabase(questions: AdminQuestion[]): Promise<boolean> {
+  try {
+    const formatted = questions.map(q => ({
+      id: q.id.startsWith("manual-") || q.id.startsWith("imported-") ? undefined : q.id,
+      question: q.question,
+      option_a: q.options[0],
+      option_b: q.options[1],
+      option_c: q.options[2],
+      option_d: q.options[3],
+      correct: ["A", "B", "C", "D"][q.correctIndex] || "A",
+      subject: q.subject,
+      topic: q.topic,
+      difficulty: q.difficulty,
+      explanation: q.explanation,
+    }));
+
+    const { error } = await supabase.from("questions").insert(formatted);
+    if (error) {
+      console.error("Error saving to Supabase:", error);
+      return false;
+    }
+    
+    // Also save to localStorage for offline access
+    localStorage.setItem(STORE_KEY, JSON.stringify(questions));
+    notifyQuestionsUpdated(questions.length);
+    return true;
+  } catch (err) {
+    console.error("Error saving to Supabase:", err);
+    return false;
+  }
+}
+
+/** Delete a question from Supabase */
+export async function deleteQuestionFromSupabase(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("questions").delete().eq("id", id);
+    if (error) {
+      console.error("Error deleting from Supabase:", error);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -102,13 +207,10 @@ function toSubject(s: string): Subject {
   if (!s) return "General Knowledge";
   const key = s.trim().toLowerCase();
   if (SUBJECT_ALIASES[key]) return SUBJECT_ALIASES[key];
-  // Exact case-insensitive match
   const exact = VALID_SUBJECTS.find((v) => v.toLowerCase() === key);
   if (exact) return exact;
-  // Starts-with match (handles truncated values like "mathemat")
   const startsWith = VALID_SUBJECTS.find((v) => key.startsWith(v.toLowerCase().slice(0, 5)));
   if (startsWith) return startsWith;
-  // Partial containment match
   const partial = VALID_SUBJECTS.find((v) => key.includes(v.toLowerCase()) || v.toLowerCase().includes(key));
   return partial ?? "General Knowledge";
 }
@@ -140,6 +242,8 @@ export function getAdminQuestionCount(): number {
 export function deleteAdminQuestion(id: string): void {
   const questions = loadAdminQuestions().filter((q) => q.id !== id);
   saveAdminQuestions(questions);
+  // Also try to delete from Supabase (fire and forget)
+  deleteQuestionFromSupabase(id);
 }
 
 export function clearAdminQuestions(): void {
