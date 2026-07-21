@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth, supabase } from "../context/AuthContext";
 import { projectId, publicAnonKey } from "../../../utils/supabase/info";
+import { requestNotificationPermission } from "../utils/notificationPermission";
 import mssnLogo from "../../imports/mssn_logo-removebg-preview__3_.png";
 
 const SERVER = `https://${projectId}.supabase.co/functions/v1/make-server-1943a64d`;
@@ -414,6 +415,8 @@ export function AuthScreen({ initialView = "welcome" }: AuthScreenProps) {
 
   // Redirect after auth — admin goes to /admin, others to /home
   const redirectAfterAuth = (uid: string) => {
+    // Request notification permission after every login (token may have changed)
+    requestNotificationPermission(uid);
     try{
     supabase
       .from("profiles")
@@ -517,7 +520,14 @@ export function AuthScreen({ initialView = "welcome" }: AuthScreenProps) {
 
       setSuccessName(signupName.trim());
       goTo("success");
-      setTimeout(() => navigate("/home"), 2600);
+      // Request notification permission after successful signup
+      setTimeout(async () => {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser?.id) {
+          requestNotificationPermission(currentUser.id);
+        }
+        navigate("/home");
+      }, 2600);
     } catch {
       setServerError("Connection error. Please check your internet and try again.");
     } finally {

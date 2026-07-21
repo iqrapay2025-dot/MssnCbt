@@ -126,6 +126,7 @@ interface ProfileRow {
   email: string | null;
   role: string;
   created_at: string;
+  last_logged_in_at: string | null;
 }
 
 /** Shape of a quiz attempt from Supabase */
@@ -241,20 +242,32 @@ async function fetchUserAttempts(userId: string): Promise<QuizAttemptRow[]> {
   }
 }
 
-/** Fetch all profiles from Supabase (admin only) */
+/** Fetch all profiles from Supabase (admin only) — includes last_logged_in_at */
 async function fetchAllProfiles(): Promise<ProfileRow[]> {
   try {
-    const { data, error } = await supabase
+    const { data: profiles, error } = await supabase
       .from("profiles")
-      .select("id, name, email, role, created_at")
+      .select("id, name, email, role, created_at, last_logged_in_at")
       .order("created_at", { ascending: false });
     if (error) {
       console.error("Error fetching profiles:", error);
       return [];
     }
-    return (data || []) as ProfileRow[];
+    return (profiles || []) as ProfileRow[];
   } catch {
     return [];
+  }
+}
+
+/** Invoke the send-notification edge function */
+async function invokeSendNotification(title: string, body: string, type: "question_upload" | "broadcast") {
+  try {
+    const { error } = await supabase.functions.invoke("send-notification", {
+      body: { title, body, type },
+    });
+    if (error) console.error("Error sending notification:", error);
+  } catch (err) {
+    console.error("Failed to invoke send-notification:", err);
   }
 }
 
@@ -1019,6 +1032,12 @@ export function AdminPanel() {
       type: "questions",
       timestamp: Date.now(),
     });
+    // Send push notification via Edge Function for real device push
+    invokeSendNotification(
+      "New Questions Available",
+      "New practice questions have just been added!",
+      "question_upload"
+    );
     setPublishSuccess(approved.length);
     setReviewData(null);
     setImportedFile(null);
@@ -1042,6 +1061,12 @@ export function AdminPanel() {
       type: "broadcast",
       timestamp: Date.now(),
     });
+    // Send push notification via Edge Function for real device push
+    invokeSendNotification(
+      broadcastTitle.trim(),
+      broadcastBody.trim(),
+      "broadcast"
+    );
     setBroadcastHistory((prev) =>
       [
         {
@@ -1098,6 +1123,12 @@ export function AdminPanel() {
       type: "questions",
       timestamp: Date.now(),
     });
+    // Send push notification via Edge Function for real device push
+    invokeSendNotification(
+      "New Questions Available",
+      "New practice questions have just been added!",
+      "question_upload"
+    );
     setAddForm({
       subject: "English",
       topic: "",
@@ -2403,15 +2434,29 @@ export function AdminPanel() {
                                     {p.email || "No email"}
                                   </p>
                                 </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <span
-                                    style={{
-                                      fontSize: "10px",
-                                      color: "#9CA3AF",
-                                    }}
-                                  >
-                                    {new Date(p.created_at).toLocaleDateString()}
-                                  </span>
+                                <div className="flex items-center gap-2 flex-shrink-0 text-right">
+                                  <div className="flex flex-col items-end">
+                                    {p.last_logged_in_at && (
+                                      <span
+                                        style={{
+                                          fontSize: "9px",
+                                          color: GREEN,
+                                          fontWeight: 700,
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        Last login: {new Date(p.last_logged_in_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    )}
+                                    <span
+                                      style={{
+                                        fontSize: "10px",
+                                        color: "#9CA3AF",
+                                      }}
+                                    >
+                                      Joined {new Date(p.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
                                   <ChevronRight size={14} style={{ color: "#ccc" }} />
                                 </div>
                               </div>

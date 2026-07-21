@@ -269,6 +269,29 @@ export function notifyQuestionsUpdated(count: number): void {
 }
 
 /**
+ * Subscribe to real-time changes on the questions table.
+ * When admin inserts/updates/deletes questions, all connected clients
+ * automatically refresh their local cache.
+ */
+export function subscribeToQuestionsRealtime(onChange: () => void): () => void {
+  const channel = supabase
+    .channel("questions-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "questions" },
+      () => {
+        // Re-sync localStorage from Supabase, then notify listeners
+        syncFromServer().then(() => onChange());
+      },
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+/**
  * Writes an AI-generated explanation back to the stored AdminQuestion so it is
  * never re-generated. Keyed by Question.id (index + 10000).
  */

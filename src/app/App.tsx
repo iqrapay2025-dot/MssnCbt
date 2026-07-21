@@ -6,7 +6,8 @@ import { AuthProvider } from "./context/AuthContext";
 import { SplashLoader } from "./components/Loader";
 import { QuestionUpdateBanner } from "./components/QuestionUpdateBanner";
 import mssnLogo from "../imports/mssn_logo-removebg-preview__3_.png";
-import { syncFromServer } from "./utils/questionStore";
+import { syncFromServer, subscribeToQuestionsRealtime } from "./utils/questionStore";
+import { registerFirebaseSW } from "./utils/notificationPermission";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -28,8 +29,21 @@ export default function App() {
     // Sync questions from server (restores after reload if localStorage was wiped)
     syncFromServer();
 
+    // Register Firebase messaging service worker for push notifications
+    registerFirebaseSW();
+
+    // Subscribe to real-time question changes — when admin adds/deletes questions,
+    // all connected clients automatically refresh their local cache
+    const unsubscribe = subscribeToQuestionsRealtime(() => {
+      // Re-sync from server when questions table changes
+      syncFromServer();
+    });
+
     const t = setTimeout(() => setLoading(false), 1200);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   if (loading) return <SplashLoader />;

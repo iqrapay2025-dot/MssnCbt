@@ -144,6 +144,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           addRegisteredUser(name, email);
           incrementUserCount();
           await checkAdminRole(s.user.id);
+          // Update last_logged_in_at on profiles
+          try {
+            await supabase
+              .from("profiles")
+              .update({ last_logged_in_at: new Date().toISOString() })
+              .eq("id", s.user.id);
+          } catch {}
         }
         
         if (event === "SIGNED_OUT") {
