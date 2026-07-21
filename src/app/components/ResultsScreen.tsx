@@ -4,6 +4,8 @@ import { motion } from "motion/react";
 import { RotateCcw, Share2, ChevronRight } from "lucide-react";
 import { PageFade, MotionCard, fadeUp, stagger } from "./MotionCard";
 import { useUser } from "../context/UserContext";
+import { useAuth } from "../context/AuthContext";
+import { saveQuizAttempt } from "./AdminPanel";
 import type { Question } from "../data/sampleData";
 
 const GREEN = "#1F4E3D";
@@ -70,6 +72,7 @@ export function ResultsScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { recordSession } = useUser();
+  const { user } = useAuth();
   const recorded = useRef(false);
   const state = location.state as ResultsState | null;
 
@@ -95,6 +98,18 @@ export function ResultsScreen() {
         subject: state.subject,
         subjectBreakdown: breakdown,
       });
+      // Persist to Supabase quiz_attempts table
+      if (user?.id) {
+        saveQuizAttempt(
+          user.id,
+          state.score,
+          state.total,
+          state.timeUsed,
+          state.mode,
+          state.subject,
+          breakdown,
+        );
+      }
     }
   }, []);
 

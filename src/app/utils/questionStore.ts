@@ -74,8 +74,16 @@ export async function syncFromServer(): Promise<void> {
 
     if (!tableError && tableData && tableData.length > 0) {
       const questions = tableData.map(rowToAdminQuestion);
+      const local = loadAdminQuestions();
+      const localIds = new Set(local.map((q) => q.id));
+      const newQuestions = questions.filter((q) => !localIds.has(q.id));
+
       localStorage.setItem(STORE_KEY, JSON.stringify(questions));
-      notifyQuestionsUpdated(questions.length);
+
+      // Only notify if there are genuinely new questions that weren't already cached
+      if (newQuestions.length > 0) {
+        notifyQuestionsUpdated(questions.length);
+      }
       return;
     }
 
@@ -91,10 +99,12 @@ export async function syncFromServer(): Promise<void> {
       const local = loadAdminQuestions();
       const serverCount = serverQuestions.length;
       const localCount = local.length;
+      const localIds = new Set(local.map((q) => q.id));
+      const newOnes = serverQuestions.filter((q) => !localIds.has(q.id));
       
       if (serverCount !== localCount) {
         localStorage.setItem(STORE_KEY, JSON.stringify(serverQuestions));
-        if (serverCount > localCount) {
+        if (newOnes.length > 0) {
           notifyQuestionsUpdated(serverCount);
         }
       }

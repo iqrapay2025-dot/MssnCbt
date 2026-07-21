@@ -53,15 +53,25 @@ function syncDisplayName(user: User | null) {
   if (name) localStorage.setItem("mssn_user_name", name);
 }
 
-function getUserCount(): number {
+async function fetchUserCount(): Promise<number> {
   try {
-    return parseInt(localStorage.getItem(USER_COUNT_KEY) || "0", 10);
-  } catch { return 0; }
+    const { count, error } = await supabase
+      .from("profiles")
+      .select("*", { count: "exact", head: true });
+    if (error) {
+      console.error("Error fetching user count:", error);
+      return 0;
+    }
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
 }
 
 function incrementUserCount(): void {
   try {
-    localStorage.setItem(USER_COUNT_KEY, String(getUserCount() + 1));
+    const current = parseInt(localStorage.getItem(USER_COUNT_KEY) || "0", 10);
+    localStorage.setItem(USER_COUNT_KEY, String(current + 1));
   } catch {}
 }
 
@@ -82,7 +92,7 @@ function addRegisteredUser(name: string, email: string): void {
   } catch {}
 }
 
-export { getUserCount, getRegisteredUsers };
+export { fetchUserCount, getRegisteredUsers };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

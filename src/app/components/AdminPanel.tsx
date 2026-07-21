@@ -19,6 +19,13 @@ import {
   Send,
   MessageSquare,
   Bell,
+  ArrowLeft,
+  Clock,
+  Target,
+  BookOpen,
+  Award,
+  TrendingUp,
+  ChevronRight,
 } from "lucide-react";
 import { PageFade, MotionCard, fadeUp } from "./MotionCard";
 import {
@@ -32,13 +39,15 @@ import {
 import { pushNotification } from "../utils/notificationStore";
 import { useUser } from "../context/UserContext";
 import {
-  getUserCount,
+  fetchUserCount,
   getRegisteredUsers,
   useAuth,
   supabase,
 } from "../context/AuthContext";
 
 const GREEN = "#1F4E3D";
+const ORANGE = "#F97316";
+const NAVY = "#0F172A";
 
 type AdminTab =
   | "overview"
@@ -108,6 +117,28 @@ interface ParsedQuestion {
   difficulty: string;
   explanation: string;
   approved: boolean;
+}
+
+/** Shape of a profile row from Supabase */
+interface ProfileRow {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  created_at: string;
+}
+
+/** Shape of a quiz attempt from Supabase */
+interface QuizAttemptRow {
+  id: string;
+  user_id: string;
+  score: number;
+  total: number;
+  time_used: number;
+  mode: string;
+  subject: string | null;
+  subject_breakdown: Record<string, { correct: number; total: number }> | null;
+  created_at: string;
 }
 
 function parseCSVLine(line: string): string[] {
@@ -189,6 +220,67 @@ function downloadCSVTemplate() {
   a.download = "mssn_questions_template.csv";
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Helper to fetch attempts for a given user from Supabase */
+async function fetchUserAttempts(userId: string): Promise<QuizAttemptRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from("quiz_attempts")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) {
+      console.error("Error fetching user attempts:", error);
+      return [];
+    }
+    return (data || []) as QuizAttemptRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** Fetch all profiles from Supabase (admin only) */
+async function fetchAllProfiles(): Promise<ProfileRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, name, email, role, created_at")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("Error fetching profiles:", error);
+      return [];
+    }
+    return (data || []) as ProfileRow[];
+  } catch {
+    return [];
+  }
+}
+
+/** Persist a quiz attempt to the Supabase quiz_attempts table */
+export async function saveQuizAttempt(
+  userId: string,
+  score: number,
+  total: number,
+  timeUsed: number,
+  mode: string,
+  subject: string | undefined,
+  subjectBreakdown: Record<string, { correct: number; total: number }> | undefined,
+): Promise<void> {
+  try {
+    await supabase.from("quiz_attempts").insert({
+      user_id: userId,
+      score,
+      total,
+      time_used: timeUsed,
+      mode,
+      subject: subject || null,
+      subject_breakdown: subjectBreakdown || null,
+    });
+  } catch (err) {
+    console.error("Failed to save quiz attempt:", err);
+  }
 }
 
 function ReviewModal({
@@ -457,6 +549,289 @@ function ReviewModal({
   );
 }
 
+// ─── User Performance Detail View ────────────────────────────────────────
+function UserPerformanceView({
+  profile,
+  onBack,
+}: {
+  profile: ProfileRow;
+  onBack: () => void;
+}) {
+  const [attempts, setAttempts] = useState<QuizAttemptRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUserAttempts(profile.id).then((data) => {
+      setAttempts(data);
+      setLoading(false);
+    });
+  }, [profile.id]);
+
+  const totalAttempts = attempts.length;
+  const avgScore =
+    totalAttempts > 0
+      ? Math.round(
+          attempts.reduce((sum, a) => sum + Math.round((a.score / a.total) * 100), 0) /
+            totalAttempts,
+        )
+      : 0;
+  const bestScore = totalAttempts > 0
+    ? Math.max(...attempts.map((a) => Math.round((a.score / a.total) * 100)))
+    : 0;
+  const lastAttemptDate = totalAttempts > 0 ? attempts[0].created_at : null;
+
+  // Compute subject breakdown across all attempts
+  const subjectTotals: Record<string, { correct: number; total: number }> = {};
+  attempts.forEach((a) => {
+    if (a.subject) {
+      if (!subjectTotals[a.subject]) subjectTotals[a.subject] = { correct: 0, total: 0 };
+      subjectTotals[a.subject].total += a.total;
+      subjectTotals[a.subject].correct += a.score;
+    }
+    // Also merge in the stored breakdown if available
+    if (a.subject_breakdown) {
+      Object.entries(a.subject_breakdown).forEach(([sub, vals]) => {
+        if (!subjectTotals[sub]) subjectTotals[sub] = { correct: 0, total: 0 };
+        subjectTotals[sub].total += vals.total;
+        subjectTotals[sub].correct += vals.correct;
+      });
+    }
+  });
+
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <span style={{ color: "#9CA3AF" }}>Loading performance data...</span>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+      {/* Back button */}
+      <motion.button
+        whileHover={{ x: -3 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={onBack}
+        className="flex items-center gap-1.5 mb-4 px-3 py-2 rounded-xl text-sm font-bold"
+        style={{ color: GREEN, background: `${GREEN}10` }}
+      >
+        <ArrowLeft size={16} /> Back to Users
+      </motion.button>
+
+      {/* User info header */}
+      <div
+        className="rounded-3xl p-6 mb-5"
+        style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{ background: `${GREEN}15` }}
+          >
+            <span
+              style={{
+                fontFamily: "'Poppins', sans-serif",
+                fontWeight: 900,
+                color: GREEN,
+                fontSize: "22px",
+              }}
+            >
+              {(profile.name || "U").charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <p
+              style={{
+                fontFamily: "'Poppins', sans-serif",
+                fontWeight: 900,
+                color: NAVY,
+                fontSize: "18px",
+              }}
+            >
+              {profile.name || "Unknown"}
+            </p>
+            <p style={{ fontSize: "13px", color: "#9CA3AF" }}>
+              {profile.email || "No email"}
+            </p>
+            <span
+              className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold mt-1"
+              style={{
+                background: profile.role === "admin" ? `${ORANGE}15` : `${GREEN}12`,
+                color: profile.role === "admin" ? ORANGE : GREEN,
+              }}
+            >
+              {profile.role}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        {[
+          { icon: Target, label: "Attempts", value: totalAttempts.toString(), color: GREEN },
+          { icon: Award, label: "Avg Score", value: `${avgScore}%`, color: avgScore >= 50 ? GREEN : "#DC2626" },
+          { icon: TrendingUp, label: "Best Score", value: `${bestScore}%`, color: bestScore >= 70 ? GREEN : ORANGE },
+          { icon: Clock, label: "Last Active", value: lastAttemptDate ? fmtDate(lastAttemptDate) : "Never", color: "#6B7280" },
+        ].map(({ icon: Icon, label, value, color }) => (
+          <div
+            key={label}
+            className="rounded-2xl p-4"
+            style={{ background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
+          >
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center mb-2"
+              style={{ background: `${GREEN}10` }}
+            >
+              <Icon size={16} style={{ color: GREEN }} />
+            </div>
+            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 900, fontSize: "22px", color }}>
+              {value}
+            </p>
+            <p style={{ fontSize: "11px", color: "#9CA3AF", fontWeight: 600 }}>{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Subject performance breakdown */}
+      {Object.keys(subjectTotals).length > 0 && (
+        <div
+          className="rounded-3xl p-5 mb-5"
+          style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+        >
+          <p
+            style={{
+              fontFamily: "'Poppins', sans-serif",
+              fontWeight: 800,
+              color: NAVY,
+              fontSize: "15px",
+              marginBottom: "14px",
+            }}
+          >
+            Subject Performance 📊
+          </p>
+          <div className="space-y-3">
+            {Object.entries(subjectTotals).map(([subject, { correct, total }]) => {
+              const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+              return (
+                <div key={subject}>
+                  <div className="flex justify-between mb-1">
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#374151" }}>
+                      {subject}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 800,
+                        color: pct >= 50 ? GREEN : "#DC2626",
+                      }}
+                    >
+                      {correct}/{total} · {pct}%
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full" style={{ background: "#F3F4F6" }}>
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: pct >= 50 ? GREEN : "#DC2626",
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Attempt history */}
+      <div
+        className="rounded-3xl p-5"
+        style={{ background: "white", boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+      >
+        <p
+          style={{
+            fontFamily: "'Poppins', sans-serif",
+            fontWeight: 800,
+            color: NAVY,
+            fontSize: "15px",
+            marginBottom: "14px",
+          }}
+        >
+          Attempt History 📝
+        </p>
+        {attempts.length === 0 ? (
+          <div className="text-center py-8">
+            <BookOpen size={32} style={{ color: "#ddd", margin: "0 auto 8px" }} />
+            <p style={{ color: "#aaa", fontSize: "13px" }}>No quiz attempts yet</p>
+          </div>
+        ) : (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {attempts.map((a, i) => {
+              const pct = Math.round((a.score / a.total) * 100);
+              return (
+                <div
+                  key={a.id || i}
+                  className="rounded-2xl p-3 flex items-center gap-3"
+                  style={{ background: "#F9FAFB", border: "1px solid #F3F4F6" }}
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: pct >= 50 ? `${GREEN}15` : "#FEF2F2" }}
+                  >
+                    <span style={{ fontSize: "16px" }}>{pct >= 50 ? "✅" : "❌"}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        style={{
+                          fontFamily: "'Poppins', sans-serif",
+                          fontWeight: 800,
+                          fontSize: "15px",
+                          color: pct >= 50 ? GREEN : "#DC2626",
+                        }}
+                      >
+                        {pct}%
+                      </span>
+                      <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                        {a.score}/{a.total} correct
+                      </span>
+                      {a.mode && (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-xs font-bold"
+                          style={{
+                            background: a.mode === "mock" ? `${ORANGE}12` : `${GREEN}12`,
+                            color: a.mode === "mock" ? ORANGE : GREEN,
+                          }}
+                        >
+                          {a.mode}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: "10px", color: "#aaa", marginTop: "2px" }}>
+                      {fmtDate(a.created_at)} · {a.subject || "Mixed"} · ⏱ {Math.floor(a.time_used / 60)}m {a.time_used % 60}s
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 export function AdminPanel() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -504,6 +879,48 @@ export function AdminPanel() {
   const [authz, setAuthz] = useState<"loading" | "granted" | "denied">(
     "loading",
   );
+  const [totalUsers, setTotalUsers] = useState<number | null>(null);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<ProfileRow | null>(null);
+  const [profilesLoading, setProfilesLoading] = useState(true);
+
+  // Fetch real user count from profiles table on mount
+  useEffect(() => {
+    fetchUserCount().then(setTotalUsers);
+  }, []);
+
+  // Fetch all profiles from DB and subscribe to real-time changes
+  useEffect(() => {
+    if (authz !== "granted") return;
+
+    const loadProfiles = async () => {
+      setProfilesLoading(true);
+      const data = await fetchAllProfiles();
+      setProfiles(data);
+      setProfilesLoading(false);
+    };
+    loadProfiles();
+
+    // Realtime subscription — listen for INSERT, UPDATE, DELETE on profiles
+    const channel = supabase
+      .channel("admin-profiles")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "profiles" },
+        async () => {
+          // Re-fetch profiles on any change
+          const data = await fetchAllProfiles();
+          setProfiles(data);
+          // Also update the count
+          fetchUserCount().then(setTotalUsers);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authz]);
 
   // Direct DB check — no race condition possible
   useEffect(() => {
@@ -702,6 +1119,13 @@ export function AdminPanel() {
       q.subject.toLowerCase().includes(search.toLowerCase()),
   );
 
+  const filteredProfiles = profiles.filter(
+    (p) =>
+      !search ||
+      (p.name && p.name.toLowerCase().includes(search.toLowerCase())) ||
+      (p.email && p.email.toLowerCase().includes(search.toLowerCase())),
+  );
+
   return (
     <PageFade>
       <div
@@ -790,6 +1214,7 @@ export function AdminPanel() {
                   onClick={() => {
                     setTab(id);
                     setSearch("");
+                    setSelectedProfile(null);
                   }}
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-left"
                   style={{
@@ -831,6 +1256,7 @@ export function AdminPanel() {
                 onClick={() => {
                   setTab(id);
                   setSearch("");
+                  setSelectedProfile(null);
                 }}
                 className="flex-1 flex flex-col items-center py-2 gap-0.5"
                 style={{ fontFamily: "'Manrope', sans-serif" }}
@@ -870,8 +1296,8 @@ export function AdminPanel() {
                     {
                       icon: Users,
                       label: "Total Users",
-                      value: getUserCount().toString(),
-                      note: "Registered users",
+                      value: totalUsers !== null ? totalUsers.toString() : "—",
+                      note: "Registered users (real-time)",
                     },
                     {
                       icon: Users,
@@ -1845,123 +2271,157 @@ export function AdminPanel() {
             )}
             {tab === "users" && (
               <div>
-                <h2
-                  style={{
-                    fontFamily: "'Poppins', sans-serif",
-                    fontWeight: 900,
-                    color: "#111",
-                    fontSize: "22px",
-                    marginBottom: "20px",
-                  }}
-                >
-                  👥 User Activity
-                </h2>
-                <div className="relative mb-4">
-                  <Search
-                    size={16}
-                    className="absolute left-4 top-1/2 -translate-y-1/2"
-                    style={{ color: "#aaa" }}
+                {selectedProfile ? (
+                  <UserPerformanceView
+                    profile={selectedProfile}
+                    onBack={() => setSelectedProfile(null)}
                   />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search users..."
-                    className="w-full pl-11 pr-4 py-3 rounded-2xl border-2 bg-white outline-none"
-                    style={{
-                      borderColor: "#eee",
-                      fontFamily: "'Manrope', sans-serif",
-                      fontSize: "14px",
-                    }}
-                  />
-                </div>
-                {(() => {
-                  const users = getRegisteredUsers().filter(
-                    (u) =>
-                      !search ||
-                      u.name.toLowerCase().includes(search.toLowerCase()) ||
-                      u.email.toLowerCase().includes(search.toLowerCase()),
-                  );
-                  return users.length === 0 ? (
-                    <div
-                      className="rounded-3xl p-12 text-center"
-                      style={{ background: "white" }}
+                ) : (
+                  <>
+                    <h2
+                      style={{
+                        fontFamily: "'Poppins', sans-serif",
+                        fontWeight: 900,
+                        color: "#111",
+                        fontSize: "22px",
+                        marginBottom: "20px",
+                      }}
                     >
-                      <Users
-                        size={36}
-                        style={{ margin: "0 auto 12px", color: "#ddd" }}
-                      />
-                      <p
+                      👥 User Activity
+                      <span
+                        className="ml-3 px-2.5 py-0.5 rounded-full text-xs font-bold"
                         style={{
-                          fontFamily: "'Poppins', sans-serif",
-                          fontWeight: 800,
-                          color: "#aaa",
-                          fontSize: "16px",
+                          background: `${GREEN}12`,
+                          color: GREEN,
+                          verticalAlign: "middle",
+                          fontSize: "12px",
                         }}
                       >
-                        No users yet
-                      </p>
+                        {profiles.length} total
+                      </span>
+                    </h2>
+                    <div className="relative mb-4">
+                      <Search
+                        size={16}
+                        className="absolute left-4 top-1/2 -translate-y-1/2"
+                        style={{ color: "#aaa" }}
+                      />
+                      <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search users by name or email..."
+                        className="w-full pl-11 pr-4 py-3 rounded-2xl border-2 bg-white outline-none"
+                        style={{
+                          borderColor: "#eee",
+                          fontFamily: "'Manrope', sans-serif",
+                          fontSize: "14px",
+                        }}
+                      />
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {users.map((u, i) => (
-                        <MotionCard
-                          key={u.email}
-                          delay={Math.min(i, 5)}
+                    {profilesLoading ? (
+                      <div className="flex items-center justify-center py-16">
+                        <span style={{ color: "#9CA3AF" }}>Loading users from database...</span>
+                      </div>
+                    ) : filteredProfiles.length === 0 ? (
+                      <div
+                        className="rounded-3xl p-12 text-center"
+                        style={{ background: "white" }}
+                      >
+                        <Users
+                          size={36}
+                          style={{ margin: "0 auto 12px", color: "#ddd" }}
+                        />
+                        <p
                           style={{
-                            background: "white",
-                            borderRadius: "16px",
-                            padding: "14px 16px",
+                            fontFamily: "'Poppins', sans-serif",
+                            fontWeight: 800,
+                            color: "#aaa",
+                            fontSize: "16px",
                           }}
                         >
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                              style={{ background: `${GREEN}15` }}
+                          No users found
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {filteredProfiles.map((p, i) => (
+                          <MotionCard
+                            key={p.id}
+                            delay={Math.min(i, 5)}
+                            style={{
+                              background: "white",
+                              borderRadius: "16px",
+                              padding: "14px 16px",
+                              cursor: "pointer",
+                            }}
+                          >
+                            <motion.button
+                              whileHover={{ x: 3 }}
+                              whileTap={{ scale: 0.99 }}
+                              onClick={() => setSelectedProfile(p)}
+                              className="w-full text-left"
                             >
-                              <span
-                                style={{
-                                  fontFamily: "'Poppins', sans-serif",
-                                  fontWeight: 900,
-                                  color: GREEN,
-                                  fontSize: "13px",
-                                }}
-                              >
-                                {u.name.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p
-                                style={{
-                                  fontWeight: 700,
-                                  fontSize: "13px",
-                                  color: "#111",
-                                }}
-                                className="truncate"
-                              >
-                                {u.name}
-                              </p>
-                              <p
-                                style={{ fontSize: "11px", color: "#9CA3AF" }}
-                                className="truncate"
-                              >
-                                {u.email}
-                              </p>
-                            </div>
-                            <span
-                              style={{
-                                fontSize: "10px",
-                                color: "#aaa",
-                                flexShrink: 0,
-                              }}
-                            >
-                              {u.date}
-                            </span>
-                          </div>
-                        </MotionCard>
-                      ))}
-                    </div>
-                  );
-                })()}
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                                  style={{ background: `${GREEN}15` }}
+                                >
+                                  <span
+                                    style={{
+                                      fontFamily: "'Poppins', sans-serif",
+                                      fontWeight: 900,
+                                      color: GREEN,
+                                      fontSize: "13px",
+                                    }}
+                                  >
+                                    {(p.name || "U").charAt(0).toUpperCase()}
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p
+                                    style={{
+                                      fontWeight: 700,
+                                      fontSize: "13px",
+                                      color: "#111",
+                                    }}
+                                    className="truncate"
+                                  >
+                                    {p.name || "Unknown"}
+                                    {p.role === "admin" && (
+                                      <span
+                                        className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold"
+                                        style={{ background: `${ORANGE}15`, color: ORANGE, fontSize: "9px" }}
+                                      >
+                                        admin
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p
+                                    style={{ fontSize: "11px", color: "#9CA3AF" }}
+                                    className="truncate"
+                                  >
+                                    {p.email || "No email"}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <span
+                                    style={{
+                                      fontSize: "10px",
+                                      color: "#9CA3AF",
+                                    }}
+                                  >
+                                    {new Date(p.created_at).toLocaleDateString()}
+                                  </span>
+                                  <ChevronRight size={14} style={{ color: "#ccc" }} />
+                                </div>
+                              </div>
+                            </motion.button>
+                          </MotionCard>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </main>
