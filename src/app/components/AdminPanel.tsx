@@ -34,6 +34,7 @@ import {
   deleteAdminQuestion,
   clearAdminQuestions,
   notifyQuestionsUpdated,
+  saveQuestionsToSupabase,
   type AdminQuestion,
 } from "../utils/questionStore";
 import { pushNotification } from "../utils/notificationStore";
@@ -271,7 +272,7 @@ async function fetchAllProfiles(): Promise<ProfileRow[]> {
 }
 
 /** Invoke the send-notification edge function */
-async function invokeSendNotification(title: string, body: string, type: "question_upload" | "broadcast") {
+async function invokeSendNotification(title: string, body: string, type: "questions" | "broadcast") {
   try {
     const { error } = await supabase.functions.invoke("send-notification", {
       body: { title, body, type },
@@ -1032,8 +1033,12 @@ export function AdminPanel() {
     };
     reader.readAsText(importedFile);
   };
-  const handlePublish = (approved: ParsedQuestion[]) => {
+  const handlePublish = async (approved: ParsedQuestion[]) => {
     const next = [...publishedQuestions, ...approved];
+    
+    // Save only the NEW approved questions to Supabase (old ones are already there)
+    const supabaseOk = await saveQuestionsToSupabase(approved as AdminQuestion[]);
+    
     saveAdminQuestions(next as AdminQuestion[]);
     setPublishedQuestions(next);
     notifyQuestionsUpdated(next.length);
@@ -1047,8 +1052,9 @@ export function AdminPanel() {
     invokeSendNotification(
       "New Questions Available",
       "New practice questions have just been added!",
-      "question_upload"
+      "questions"
     );
+    console.log(`Questions published to Supabase: ${supabaseOk ? "OK" : "FAILED"}`);
     setPublishSuccess(approved.length);
     setReviewData(null);
     setImportedFile(null);
@@ -1103,7 +1109,7 @@ export function AdminPanel() {
     });
     setConfirmResetStats(false);
   };
-  const handleManualPublish = () => {
+  const handleManualPublish = async () => {
     if (
       !addForm.question ||
       !addForm.optA ||
@@ -1124,7 +1130,11 @@ export function AdminPanel() {
       explanation: addForm.explanation,
       approved: true,
     };
+    // Save only the single new question to Supabase (existing ones are already there)
+    const supabaseOk = await saveQuestionsToSupabase([q] as AdminQuestion[]);
+    
     const next = [...publishedQuestions, q];
+    
     saveAdminQuestions(next as AdminQuestion[]);
     setPublishedQuestions(next);
     notifyQuestionsUpdated(next.length);
@@ -1138,8 +1148,9 @@ export function AdminPanel() {
     invokeSendNotification(
       "New Questions Available",
       "New practice questions have just been added!",
-      "question_upload"
+      "questions"
     );
+    console.log(`Manual question published to Supabase: ${supabaseOk ? "OK" : "FAILED"}`);
     setAddForm({
       subject: "English",
       topic: "",

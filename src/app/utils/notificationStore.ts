@@ -1,4 +1,5 @@
 import { supabase } from "../context/AuthContext";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const LOCAL_KEY = "mssn_notifications";
 const CUSTOM_EVENT = "mssn-notification";
@@ -11,6 +12,102 @@ export interface AppNotification {
   type: "questions" | "broadcast" | "system";
   timestamp: number;
   read: boolean;
+}
+
+// ── Singleton Realtime subscription state ─────────────────────────────────
+let sharedChannel: RealtimeChannel | null = null;
+let sharedUserId: string | null = null;
+const callbacks = new Set<(notif: AppNotification) => void>();
+
+/**
+ * Initialize (or re-initialize) the single shared Realtime subscription for
+ * notifications. Call this ONCE from a top-level component when the user is
+ * known (e.g. inside NotificationBell or a context provider).
+ *
+ * Once the channel is subscribed, individual components register their
+ * callbacks via `registerNotificationCallback()` — they never create their
+ * own channel.
+ */
+function ensureSharedSubscription(userId: string): void {
+  // If already subscribed with the same userId, do nothing
+  if (sharedChannel && sharedUserId === userId) return;
+
+  // If subscribed with a different userId, tear down first
+  if (sharedChannel) {
+    supabase.removeChannel(sharedChannel);
+    sharedChannel = null;
+  }
+
+  sharedUserId = userId;
+
+  sharedChannel = supabase
+    .channel(REALTIME_CHANNEL)
+    .on(
+      "postgres_changes" as any,
+      { event: "INSERT", schema: "public", table: "notifications" },
+      async (payload: any) => {
+        if (!payload.new) return;
+        const row = payload.new as any;
+        const notif: AppNotification = {
+          id: row.id,
+          title: row.title,
+          body: row.body,
+          type: row.type,
+          timestamp: new Date(row.created_at).getTime(),
+          read: (row.read_by || []).includes(userId),
+        };
+
+        // Merge into local storage
+        const all = loadNotifications();
+        if (!all.find((n) => n.id === notif.id)) {
+          all.unshift(notif);
+          if (all.length > 50) all.splice(50);
+          saveToLocal(all);
+        }
+
+        // Dispatch custom event (for NotificationBell badge count etc.)
+        window.dispatchEvent(new CustomEvent(CUSTOM_EVENT, { detail: notif }));
+
+        // Notify all registered callbacks
+        callbacks.forEach((cb) => cb(notif));
+      },
+    )
+    .subscribe();
+}
+
+/**
+ * Register a callback to receive real-time notification updates.
+ * This does NOT create a new subscription — it registers with the singleton.
+ * The subscription is lazily created on first call if not already active.
+ *
+ * Returns an unregister function. Call on component unmount.
+ */
+export function registerNotificationCallback(
+  userId: string,
+  onNewNotification: (notif: AppNotification) => void,
+): () => void {
+  // Ensure the shared subscription is active
+  ensureSharedSubscription(userId);
+
+  // Add this callback to the shared set
+  callbacks.add(onNewNotification);
+
+  // Return unregister function
+  return () => {
+    callbacks.delete(onNewNotification);
+  };
+}
+
+/**
+ * Tear down the shared subscription entirely (e.g. on logout).
+ */
+export function destroyNotificationSubscription(): void {
+  if (sharedChannel) {
+    supabase.removeChannel(sharedChannel);
+    sharedChannel = null;
+  }
+  sharedUserId = null;
+  callbacks.clear();
 }
 
 /** Load persisted notifications from localStorage (offline cache) */
@@ -179,46 +276,13 @@ export function getUnreadCount(): number {
 export const NOTIFICATION_EVENT = CUSTOM_EVENT;
 
 /**
- * Subscribe to real-time changes on the notifications table.
- * Returns an unsubscribe function. Call on mount, cleanup on unmount.
+ * Legacy function kept for backward compatibility.
+ * Now delegates to the singleton pattern instead of creating separate channels.
+ * @deprecated Use registerNotificationCallback() instead.
  */
 export function subscribeToNotifications(
   userId: string,
   onNewNotification: (notif: AppNotification) => void,
 ): () => void {
-  const channel = supabase
-    .channel(REALTIME_CHANNEL)
-    .on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "notifications" },
-      async (payload) => {
-        if (!payload.new) return;
-        const row = payload.new as any;
-        const notif: AppNotification = {
-          id: row.id,
-          title: row.title,
-          body: row.body,
-          type: row.type,
-          timestamp: new Date(row.created_at).getTime(),
-          read: (row.read_by || []).includes(userId),
-        };
-
-        // Merge into local storage
-        const all = loadNotifications();
-        // Avoid duplicates if already present
-        if (!all.find((n) => n.id === notif.id)) {
-          all.unshift(notif);
-          if (all.length > 50) all.splice(50);
-          saveToLocal(all);
-        }
-
-        onNewNotification(notif);
-        window.dispatchEvent(new CustomEvent(CUSTOM_EVENT, { detail: notif }));
-      },
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
+  return registerNotificationCallback(userId, onNewNotification);
 }

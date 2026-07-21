@@ -504,6 +504,8 @@ export function NotificationsPanel({ open, onClose }: Props) {
 // ── Bell button with unread badge ─────────────────────────────────────────────
 export function NotificationBell({ onClick }: { onClick: () => void }) {
   const [count, setCount] = useState(getUnreadCount);
+  const { user } = useAuth();
+  const userId = user?.id || "";
 
   const refresh = useCallback(() => setCount(getUnreadCount()), []);
 
@@ -511,12 +513,23 @@ export function NotificationBell({ onClick }: { onClick: () => void }) {
     window.addEventListener(NOTIFICATION_EVENT, refresh);
     window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
+
+    // Subscribe to Realtime changes on notifications table so the bell badge
+    // updates immediately even when the NotificationsPanel is closed.
+    let unsubscribe: (() => void) | undefined;
+    if (userId) {
+      unsubscribe = subscribeToNotifications(userId, () => {
+        refresh();
+      });
+    }
+
     return () => {
       window.removeEventListener(NOTIFICATION_EVENT, refresh);
       window.removeEventListener("storage", refresh);
       window.removeEventListener("focus", refresh);
+      if (unsubscribe) unsubscribe();
     };
-  }, [refresh]);
+  }, [refresh, userId]);
 
   const handleClick = () => {
     setCount(getUnreadCount());

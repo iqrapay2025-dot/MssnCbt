@@ -274,12 +274,15 @@ export function notifyQuestionsUpdated(count: number): void {
  * automatically refresh their local cache.
  */
 export function subscribeToQuestionsRealtime(onChange: () => void): () => void {
+  console.log("📋 [Realtime] Setting up questions subscription...");
   const channel = supabase
     .channel("questions-realtime")
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "questions" },
-      () => {
+      (payload) => {
+        const newRow = payload.new as { question?: string } | null;
+        console.log("📋 [Realtime] Questions change received:", payload.eventType, newRow?.question?.slice(0,40));
         // Re-sync localStorage from Supabase, then notify listeners
         syncFromServer().then(() => onChange());
       },
