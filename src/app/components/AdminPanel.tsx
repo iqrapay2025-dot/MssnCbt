@@ -242,18 +242,29 @@ async function fetchUserAttempts(userId: string): Promise<QuizAttemptRow[]> {
   }
 }
 
-/** Fetch all profiles from Supabase (admin only) — includes last_logged_in_at */
+/** Fetch all profiles from Supabase (admin only) — includes last_logged_in_at if available */
 async function fetchAllProfiles(): Promise<ProfileRow[]> {
   try {
+    // First attempt: try with last_logged_in_at (requires migration 007 to be applied)
     const { data: profiles, error } = await supabase
       .from("profiles")
       .select("id, name, email, role, created_at, last_logged_in_at")
       .order("created_at", { ascending: false });
-    if (error) {
-      console.error("Error fetching profiles:", error);
+    if (!error) {
+      return (profiles || []) as ProfileRow[];
+    }
+    // If the query failed (e.g. last_logged_in_at column doesn't exist yet),
+    // fall back to fetching without it
+    console.warn("Fetching profiles with last_logged_in_at failed, retrying without it:", error.message);
+    const { data: fallback, error: fallbackError } = await supabase
+      .from("profiles")
+      .select("id, name, email, role, created_at")
+      .order("created_at", { ascending: false });
+    if (fallbackError) {
+      console.error("Error fetching profiles (fallback):", fallbackError);
       return [];
     }
-    return (profiles || []) as ProfileRow[];
+    return (fallback || []) as ProfileRow[];
   } catch {
     return [];
   }
