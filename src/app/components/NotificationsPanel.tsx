@@ -10,6 +10,7 @@ import {
   clearAllNotifications,
   getUnreadCount,
   subscribeToNotifications,
+  resolveNotificationUserId,
   NOTIFICATION_EVENT,
   type AppNotification,
 } from "../utils/notificationStore";
@@ -182,7 +183,7 @@ interface Props {
 
 export function NotificationsPanel({ open, onClose }: Props) {
   const { user } = useAuth();
-  const userId = user?.id || "";
+  const userId = resolveNotificationUserId(user?.id);
   const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [reading, setReading] = useState<AppNotification | null>(null);
 
@@ -201,13 +202,11 @@ export function NotificationsPanel({ open, onClose }: Props) {
     window.addEventListener("storage", () => refresh());
     window.addEventListener("focus", () => refresh());
 
-    // Subscribe to real-time changes
+    // Subscribe to real-time changes (works for guests too via the local guest ID)
     let unsubscribe: (() => void) | undefined;
-    if (userId) {
-      unsubscribe = subscribeToNotifications(userId, () => {
-        refresh();
-      });
-    }
+    unsubscribe = subscribeToNotifications(userId, () => {
+      refresh();
+    });
 
     return () => {
       window.removeEventListener(NOTIFICATION_EVENT, () => refresh());
@@ -505,7 +504,7 @@ export function NotificationsPanel({ open, onClose }: Props) {
 export function NotificationBell({ onClick }: { onClick: () => void }) {
   const [count, setCount] = useState(getUnreadCount);
   const { user } = useAuth();
-  const userId = user?.id || "";
+  const userId = resolveNotificationUserId(user?.id);
 
   const refresh = useCallback(() => setCount(getUnreadCount()), []);
 
@@ -517,11 +516,9 @@ export function NotificationBell({ onClick }: { onClick: () => void }) {
     // Subscribe to Realtime changes on notifications table so the bell badge
     // updates immediately even when the NotificationsPanel is closed.
     let unsubscribe: (() => void) | undefined;
-    if (userId) {
-      unsubscribe = subscribeToNotifications(userId, () => {
-        refresh();
-      });
-    }
+    unsubscribe = subscribeToNotifications(userId, () => {
+      refresh();
+    });
 
     return () => {
       window.removeEventListener(NOTIFICATION_EVENT, refresh);

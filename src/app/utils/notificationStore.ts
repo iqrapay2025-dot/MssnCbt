@@ -4,6 +4,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 const LOCAL_KEY = "mssn_notifications";
 const CUSTOM_EVENT = "mssn-notification";
 const REALTIME_CHANNEL = "mssn-notifications-channel";
+const GUEST_ID_KEY = "mssn_guest_notification_id";
 
 export interface AppNotification {
   id: string;
@@ -14,31 +15,49 @@ export interface AppNotification {
   read: boolean;
 }
 
+/** Generate a stable guest ID so guests can subscribe to Realtime changes */
+function getGuestId(): string {
+  let id = localStorage.getItem(GUEST_ID_KEY);
+  if (!id) {
+    id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    try { localStorage.setItem(GUEST_ID_KEY, id); } catch {}
+  }
+  return id;
+}
+
+/**
+ * Resolve a usable identifier for the Realtime subscription.
+ * Authenticated users use their Supabase user ID; guests get a stable local ID.
+ */
+export function resolveNotificationUserId(userId: string | null | undefined): string {
+  return userId || getGuestId();
+}
+
 // ── Singleton Realtime subscription state ─────────────────────────────────
 let sharedChannel: RealtimeChannel | null = null;
-let sharedUserId: string | null = null;
+let sharedSubId: string | null = null;
 const callbacks = new Set<(notif: AppNotification) => void>();
 
 /**
  * Initialize (or re-initialize) the single shared Realtime subscription for
- * notifications. Call this ONCE from a top-level component when the user is
- * known (e.g. inside NotificationBell or a context provider).
+ * notifications. Accepts an optional userId — if empty/falsy a local guest ID
+ * is used so that guest users can also receive real-time notifications.
  *
  * Once the channel is subscribed, individual components register their
  * callbacks via `registerNotificationCallback()` — they never create their
  * own channel.
  */
-function ensureSharedSubscription(userId: string): void {
-  // If already subscribed with the same userId, do nothing
-  if (sharedChannel && sharedUserId === userId) return;
+function ensureSharedSubscription(subId: string): void {
+  // If already subscribed with the same id, do nothing
+  if (sharedChannel && sharedSubId === subId) return;
 
-  // If subscribed with a different userId, tear down first
+  // If subscribed with a different id, tear down first
   if (sharedChannel) {
     supabase.removeChannel(sharedChannel);
     sharedChannel = null;
   }
 
-  sharedUserId = userId;
+  sharedSubId = subId;
 
   sharedChannel = supabase
     .channel(REALTIME_CHANNEL)
@@ -54,7 +73,7 @@ function ensureSharedSubscription(userId: string): void {
           body: row.body,
           type: row.type,
           timestamp: new Date(row.created_at).getTime(),
-          read: (row.read_by || []).includes(userId),
+          read: (row.read_by || []).includes(subId),
         };
 
         // Merge into local storage
@@ -106,7 +125,7 @@ export function destroyNotificationSubscription(): void {
     supabase.removeChannel(sharedChannel);
     sharedChannel = null;
   }
-  sharedUserId = null;
+  sharedSubId = null;
   callbacks.clear();
 }
 

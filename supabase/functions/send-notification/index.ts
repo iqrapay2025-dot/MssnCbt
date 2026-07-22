@@ -174,18 +174,13 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // 1. Insert a row into the notifications table (for in-app display)
-    const { error: insertError } = await supabase.from("notifications").insert({
-      title,
-      body: messageBody,
-      type,
-    });
+    // NOTE: We do NOT insert into the notifications table here.
+    // The client-side pushNotification() in notificationStore.ts already inserts
+    // into the notifications table, and that insert triggers Realtime delivery
+    // to all connected users. Inserting again here would create duplicate
+    // in-app notifications for every user.
 
-    if (insertError) {
-      console.error("Error inserting notification row:", insertError.message);
-    }
-
-    // 2. Fetch all profiles that have an fcm_token
+    // Fetch all profiles that have an fcm_token
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
       .select("fcm_token")
@@ -195,7 +190,6 @@ serve(async (req: Request) => {
       console.error("Error fetching profiles:", profilesError.message);
       return json({
         ok: true,
-        inserted: !insertError,
         fcm_sent: 0,
         fcm_error: profilesError.message,
       });
@@ -206,10 +200,9 @@ serve(async (req: Request) => {
       .filter(Boolean);
 
     if (tokens.length === 0) {
-      console.log("No FCM tokens found — notification row inserted, no push sent");
+      console.log("No FCM tokens found — no push sent");
       return json({
         ok: true,
-        inserted: !insertError,
         fcm_sent: 0,
         note: "No FCM tokens found on profiles",
       });
@@ -224,7 +217,6 @@ serve(async (req: Request) => {
 
     return json({
       ok: true,
-      inserted: !insertError,
       fcm_sent: sentCount,
       fcm_total: tokens.length,
     });
