@@ -908,6 +908,8 @@ export function AdminPanel() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<ProfileRow | null>(null);
   const [profilesLoading, setProfilesLoading] = useState(true);
+  const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   // Fetch real user count from profiles table on mount
   useEffect(() => {
@@ -1171,6 +1173,33 @@ export function AdminPanel() {
       q.question.toLowerCase().includes(search.toLowerCase()) ||
       q.subject.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const handleDeleteUser = async (userId: string) => {
+    setDeletingUser(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-user", {
+        body: { user_id: userId },
+      });
+      if (error) {
+        console.error("Error invoking delete-user:", error);
+        alert("Failed to delete user: " + error.message);
+        return;
+      }
+      if (!data?.ok) {
+        console.error("delete-user returned error:", data?.error);
+        alert("Failed to delete user: " + (data?.error || "Unknown error"));
+        return;
+      }
+      // Remove from local state immediately
+      setProfiles((prev) => prev.filter((p) => p.id !== userId));
+      setDeleteConfirmUserId(null);
+    } catch (err) {
+      console.error("Failed to delete user:", err);
+      alert("Network error when deleting user");
+    } finally {
+      setDeletingUser(false);
+    }
+  };
 
   const filteredProfiles = profiles.filter(
     (p) =>
@@ -2408,81 +2437,120 @@ export function AdminPanel() {
                               cursor: "pointer",
                             }}
                           >
-                            <motion.button
-                              whileHover={{ x: 3 }}
-                              whileTap={{ scale: 0.99 }}
-                              onClick={() => setSelectedProfile(p)}
-                              className="w-full text-left"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                                  style={{ background: `${GREEN}15` }}
-                                >
-                                  <span
-                                    style={{
-                                      fontFamily: "'Poppins', sans-serif",
-                                      fontWeight: 900,
-                                      color: GREEN,
-                                      fontSize: "13px",
-                                    }}
+                            <div className="flex items-center gap-2">
+                              <motion.button
+                                whileHover={{ x: 3 }}
+                                whileTap={{ scale: 0.99 }}
+                                onClick={() => setSelectedProfile(p)}
+                                className="flex-1 text-left"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    style={{ background: `${GREEN}15` }}
                                   >
-                                    {(p.name || "U").charAt(0).toUpperCase()}
-                                  </span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p
-                                    style={{
-                                      fontWeight: 700,
-                                      fontSize: "13px",
-                                      color: "#111",
-                                    }}
-                                    className="truncate"
-                                  >
-                                    {p.name || "Unknown"}
-                                    {p.role === "admin" && (
-                                      <span
-                                        className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold"
-                                        style={{ background: `${ORANGE}15`, color: ORANGE, fontSize: "9px" }}
-                                      >
-                                        admin
-                                      </span>
-                                    )}
-                                  </p>
-                                  <p
-                                    style={{ fontSize: "11px", color: "#9CA3AF" }}
-                                    className="truncate"
-                                  >
-                                    {p.email || "No email"}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2 flex-shrink-0 text-right">
-                                  <div className="flex flex-col items-end">
-                                    {p.last_logged_in_at && (
-                                      <span
-                                        style={{
-                                          fontSize: "9px",
-                                          color: GREEN,
-                                          fontWeight: 700,
-                                          whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        Last login: {new Date(p.last_logged_in_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                                      </span>
-                                    )}
                                     <span
                                       style={{
-                                        fontSize: "10px",
-                                        color: "#9CA3AF",
+                                        fontFamily: "'Poppins', sans-serif",
+                                        fontWeight: 900,
+                                        color: GREEN,
+                                        fontSize: "13px",
                                       }}
                                     >
-                                      Joined {new Date(p.created_at).toLocaleDateString()}
+                                      {(p.name || "U").charAt(0).toUpperCase()}
                                     </span>
                                   </div>
-                                  <ChevronRight size={14} style={{ color: "#ccc" }} />
+                                  <div className="flex-1 min-w-0">
+                                    <p
+                                      style={{
+                                        fontWeight: 700,
+                                        fontSize: "13px",
+                                        color: "#111",
+                                      }}
+                                      className="truncate"
+                                    >
+                                      {p.name || "Unknown"}
+                                      {p.role === "admin" && (
+                                        <span
+                                          className="ml-2 px-1.5 py-0.5 rounded text-xs font-bold"
+                                          style={{ background: `${ORANGE}15`, color: ORANGE, fontSize: "9px" }}
+                                        >
+                                          admin
+                                        </span>
+                                      )}
+                                    </p>
+                                    <p
+                                      style={{ fontSize: "11px", color: "#9CA3AF" }}
+                                      className="truncate"
+                                    >
+                                      {p.email || "No email"}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0 text-right">
+                                    <div className="flex flex-col items-end">
+                                      {p.last_logged_in_at && (
+                                        <span
+                                          style={{
+                                            fontSize: "9px",
+                                            color: GREEN,
+                                            fontWeight: 700,
+                                            whiteSpace: "nowrap",
+                                          }}
+                                        >
+                                          Last login: {new Date(p.last_logged_in_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                        </span>
+                                      )}
+                                      <span
+                                        style={{
+                                          fontSize: "10px",
+                                          color: "#9CA3AF",
+                                        }}
+                                      >
+                                        Joined {new Date(p.created_at).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    <ChevronRight size={14} style={{ color: "#ccc" }} />
+                                  </div>
                                 </div>
-                              </div>
-                            </motion.button>
+                              </motion.button>
+                              {deleteConfirmUserId === p.id ? (
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <span style={{ fontSize: "10px", color: "#DC2626", fontWeight: 700, whiteSpace: "nowrap" }}>
+                                    Delete?
+                                  </span>
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteUser(p.id); }}
+                                    disabled={deletingUser}
+                                    className="px-2 py-1 rounded-lg text-xs font-bold"
+                                    style={{ background: "#DC2626", color: "white", opacity: deletingUser ? 0.6 : 1 }}
+                                  >
+                                    {deletingUser ? "..." : "Yes"}
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={(e) => { e.stopPropagation(); setDeleteConfirmUserId(null); }}
+                                    className="px-2 py-1 rounded-lg text-xs font-bold"
+                                    style={{ background: "#F3F4F6", color: "#6B7280" }}
+                                  >
+                                    No
+                                  </motion.button>
+                                </div>
+                              ) : (
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={(e) => { e.stopPropagation(); setDeleteConfirmUserId(p.id); }}
+                                  className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0"
+                                  style={{ background: "#FEF2F2" }}
+                                  aria-label={`Delete user ${p.name || p.email || ""}`}
+                                >
+                                  <Trash2 size={12} style={{ color: "#DC2626" }} />
+                                </motion.button>
+                              )}
+                            </div>
                           </MotionCard>
                         ))}
                       </div>
