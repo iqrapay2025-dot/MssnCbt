@@ -284,12 +284,20 @@ export function subscribeToQuestionsRealtime(onChange: () => void): () => void {
         const newRow = payload.new as { question?: string } | null;
         console.log("📋 [Realtime] Questions change received:", payload.eventType, newRow?.question?.slice(0,40));
         // Re-sync localStorage from Supabase, then notify listeners
-        syncFromServer().then(() => onChange());
+        // Note: syncFromServer() already fires notifyQuestionsUpdated internally,
+        // so the caller (App.tsx) does NOT need to call syncFromServer() again.
+        syncFromServer().then(() => {
+          // Call the onChange callback to trigger UI re-renders
+          if (typeof onChange === "function") onChange();
+        });
       },
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log("📋 [Realtime] Questions channel status:", status);
+    });
 
   return () => {
+    console.log("📋 [Realtime] Removing questions subscription...");
     supabase.removeChannel(channel);
   };
 }

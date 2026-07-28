@@ -45,6 +45,7 @@ import {
   useAuth,
   supabase,
 } from "../context/AuthContext";
+import { projectId, publicAnonKey } from "../../../utils/supabase/info";
 
 const GREEN = "#1F4E3D";
 const ORANGE = "#F97316";
@@ -1177,17 +1178,22 @@ export function AdminPanel() {
   const handleDeleteUser = async (userId: string) => {
     setDeletingUser(true);
     try {
-      const { data, error } = await supabase.functions.invoke("delete-user", {
-        body: { user_id: userId },
-      });
-      if (error) {
-        console.error("Error invoking delete-user:", error);
-        alert("Failed to delete user: " + error.message);
-        return;
-      }
-      if (!data?.ok) {
-        console.error("delete-user returned error:", data?.error);
-        alert("Failed to delete user: " + (data?.error || "Unknown error"));
+      // Use direct fetch instead of supabase.functions.invoke for reliability
+      const res = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/delete-user`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+          body: JSON.stringify({ user_id: userId }),
+        },
+      );
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        console.error("delete-user returned error:", data?.error || res.statusText);
+        alert("Failed to delete user: " + (data?.error || res.statusText || "Unknown error"));
         return;
       }
       // Remove from local state immediately

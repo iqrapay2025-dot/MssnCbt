@@ -8,6 +8,7 @@ import { QuestionUpdateBanner } from "./components/QuestionUpdateBanner";
 import mssnLogo from "../imports/mssn_logo-removebg-preview__3_.png";
 import { syncFromServer, subscribeToQuestionsRealtime } from "./utils/questionStore";
 import { registerFirebaseSW } from "./utils/notificationPermission";
+import { supabase } from "./context/AuthContext";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -34,14 +35,49 @@ export default function App() {
 
     // Subscribe to real-time question changes — when admin adds/deletes questions,
     // all connected clients automatically refresh their local cache
+    // The subscribeToQuestionsRealtime callback already calls syncFromServer()
+    // internally, so we just need to refresh UI state when notified.
     const unsubscribe = subscribeToQuestionsRealtime(() => {
-      // Re-sync from server when questions table changes
-      syncFromServer();
+      // The callback fires AFTER syncFromServer() has already updated localStorage.
+      // We dispatch the custom event again to ensure all UI components re-read
+      // from localStorage. This is the main purpose — triggering re-renders.
+      window.dispatchEvent(new CustomEvent("mssn-questions-updated", { 
+        detail: { timestamp: Date.now(), count: 0 }
+      }));
     });
+
+    // —— Polling fallback: every 30 seconds, check if new questions exist ——
+    // This ensures that even if Realtime fails silently (channel not SUBSCRIBED,
+    // publication not enabled, etc.), users will still see new questions within
+    // 30 seconds of admin upload. The poll is lightweight — it compares IDs only.
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from("questions")
+          .select("id, created_at")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (data && data.length > 0) {
+          const latestId = data[0].id;
+          const localQuestions = JSON.parse(localStorage.getItem("mssn_admin_questions") || "[]");
+          if (Array.isArray(localQuestions) && !localQuestions.some((q: any) => q.id === latestId)) {
+            console.log("📋 [Polling] New question detected via poll fallback! Syncing...");
+            syncFromServer().then(() => {
+              window.dispatchEvent(new CustomEvent("mssn-questions-updated", { 
+                detail: { timestamp: Date.now(), count: 0 }
+              }));
+            });
+          }
+        }
+      } catch (e) {
+        // Silent — polling is best-effort
+      }
+    }, 30000);
 
     const t = setTimeout(() => setLoading(false), 1200);
     return () => {
       clearTimeout(t);
+      clearInterval(pollInterval);
       if (unsubscribe) unsubscribe();
     };
   }, []);
